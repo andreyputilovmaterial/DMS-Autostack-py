@@ -41,6 +41,12 @@ def extract_field_name(item_name):
     else:
         raise ValueError('Can\'t extract field name from "{s}"'.format(s=item_name))
 
+def remove_unnecessary_metadata_section_definition(script):
+    script = script + '\n'
+    script = re.sub(r'^\s*?(\s*?(?:\'[^\n]*?)?\n)*?\s*?Metadata\b\s*?(?:\([^\n]*?\))?\s*?(?:\'[^\n]*?)?\s*?\n','',script,flags=re.I|re.DOTALL)
+    script = re.sub(r'\n\s*?End\b\s*?\bMetadata\b\s*?(?:\'[^\n]*?)?\s*?\n(\s*?(?:\'[^\n]*?)?\n)*$','\n',script,flags=re.I|re.DOTALL)
+    return script
+
 def detect_item_type_from_mdddata_fields_report(item_name):
     item_name_clean = sanitize_item_name(item_name)
     if re.match(r'^\s*?$',item_name_clean,flags=re.I):
@@ -217,6 +223,7 @@ def patch_generate_scripts_mdata(mdd_data,patch,config):
 
     result = mdmroot.Script
     result = normalize_line_breaks(result) # metadata generation from IBM tools prints \r\n in metadata, it causes an extra empty line everywhere
+    result = remove_unnecessary_metadata_section_definition(result)
     
     return result
 

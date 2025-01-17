@@ -33,11 +33,17 @@ CONFIG_LOOP_DEFAULT_MDATA = """
 <<LOOPNAME>> -
 Loop
 {
+    <<CATEGORIES>>
 }
 fields
 (
-	STK_ID
-	Text[..255];
+	STK_ID -
+	text[..255];
+    STK_Iteration -
+    categorical [1..1]
+    {
+        <<CATEGORIES>>
+    };
 )expand;
 """
 
@@ -236,12 +242,14 @@ def generate_patch_stk(variable_specs,mdd_data,config):
         loopname = '{base_part}_{knt}'.format(base_part=CONFIG_LOOP_NAME,knt=counter)
         counter = counter + 1
 
+    categories_scripts = ' Marvel "Marvel" ' # TODO:
+
     result_patch = {
         'action': 'variable-new',
         'variable': loopname,
         'position': '', # root
         'debug_data': { 'description': 'top level stacking loop' },
-        'new_metadata': CONFIG_LOOP_DEFAULT_MDATA.replace('<<LOOPNAME>>',loopname),
+        'new_metadata': CONFIG_LOOP_DEFAULT_MDATA.replace('<<LOOPNAME>>',loopname).replace('<<CATEGORIES>>',categories_scripts),
         'new_attributes': { 'ObjectTypeValue': 1, 'Label': None, 'MDMRead_type': 'array' },
         'new_edits': 'dim brand, cbrand\nfor brand in {loopname}.categories\nwith {loopname}[cbrand]\tcbrand = ccategorical(brand)\n.STK_ID = ctext(brand.name)+"_"+ctext(Respondent.ID)\n\tend with\n\nnext\n'.format(loopname=loopname),
     }

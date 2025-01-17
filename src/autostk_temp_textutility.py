@@ -40,9 +40,6 @@ TEMPLATE_401 = """
 
 ' -----------------------------------------------------------------------
 
-'StackingLoop: Loop from R-files containing data we want stacked
-#Define STACKINGLOOP "ChildLoop"
-
 'Note: By default only completes will be included in the stacking loop.  Please update WHERE clause below if contact stacking is needed
 InputDatasource(Input)
 	ConnectionString = "Provider = mrOleDB.Provider.2; Data Source = " + DIMENSIONS_DSC + "; Initial Catalog = '" + PROCESSED_MDD + "'; Location = " + PROCESSED_DATA + ";" 
@@ -96,33 +93,7 @@ End Event
 ' -----------------------------------------------------------------------
 Metadata(ENU, Analysis, Label, Input)
 
-'Add new variables here. Add them as fields in the Loop below, and they will become top-level fields in the stacked output.
-
-STACKINGLOOP
-Loop
-{
-	'No need to define iterations if this is an existing Loop
-}
-fields
-(
-	STK_ID
-	Text[..255];
-
-	'Add new fields here, including banners for stacked data.
-	
-	'e.g.,
-	'Banner3 "Banner3 - Stacked Banner"
-	'categorical
-	'{
-	'	Total "Total",
-	'	BannerPt2 "Some Banner Point Label",
-	'	BannerPt3,
-	'	BannerPt4,
-	'	BannerPt5
-	'} axis("{..,unweightedbase() [IsHidden=True], base() [IsHidden=True]}");
-
-	'Populate variables in OnNextCase
-)expand;
+' ...
 
 End Metadata
 ' -----------------------------------------------------------------------
@@ -150,27 +121,7 @@ Event(OnNextCase)
 #include "Includes/DMS/ONCFunctions.mrs"
 #include "Includes/DMS/ONCCappingFunctions.mrs"
 
-Dim Cat, oSL
-'refer to overall loop as oSL for the rest of OnNextCase
-execute("Set oSL = " +STACKINGLOOP)
-
-'Populate variables inside stacking loop
-For Each Cat in oSL.Categories
-	With oSL[Cat.Name]
-		'Create unique ID for each stacked record
-		'Future versions of this script should probably use CodingID as the base, but that relies on Survey Shell 6.3.0+
-		.STK_ID = Respondent.ID + "_" + Cat.Name
-		
-''		'.FieldOne = . . .
-''		If .SomeVar is not null then
-''			.Banner3 = {Total} + _
-''				iif('!Some Condition!',{BannerPt2},{}) + _
-''				iif('!Some Condition!',{BannerPt3},{}) + _
-''				iif('!Some Condition!',{BannerPt4},{}) + _
-''				iif('!Some Condition!',{BannerPt5},{})
-''		end if
-	End With
-Next
+' ...
 
 End Event
 
