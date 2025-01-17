@@ -125,11 +125,40 @@ def generate_updated_metadata_updateproperties(mdmitem,mdmitem_script,newvalues_
     return mdmitem, mdmitem.Script
 
 def generate_updated_metadata_stk_categorical(mdmitem,mdmitem_script,mdmdoc):
-    for mdmelem in mdmitem.elements:
-        mdmitem.elements.remove(mdmelem.Name)
+    # if mdmitem.Elements.IsReference:
+    #     mdmitem.Elements.Reference = None
+    #     mdmitem.Elements.ReferenceName = None
+    # for mdmelem in mdmitem.Elements:
+    #     mdmitem.Elements.remove(mdmelem.Name)
+    # mdm_elem_new = mdmdoc.CreateElements("","")
+    # mdmitem.Elements = mdm_elem_new
+    if mdmitem.Elements.IsReference:
+        # TODO: this is not 100% correct, the regular expression can match the word "categorical" somewhere in label
+        # but I cen't find any better solution
+        mdmitem.Script = re.sub(r'^(.*)(\bcategorical\b)(\s*?(?:\{.*?\})?\s*?(?:\w+\s*?\(.*?\))?\s*?;?\s*?)$',lambda m: '{a}{b}{c}'.format(a=m[1],b=m[2],c=' { Yes "Yes" };'),mdmitem.Script,flags=re.I|re.DOTALL)
+        # for attempt in range(0,2):
+        #     try:
+        #         mdm_elem_new = mdmdoc.CreateElements("","")
+        #         mdmitem.Elements = mdm_elem_new
+        #     except:
+        #         pass
+        #     try:
+        #         mdmitem.Elements.ReferenceName = ''
+        #     except:
+        #         pass
+        #     try:
+        #         mdmitem.Elements.IsReference = False
+        #     except:
+        #         pass
+        #     try:
+        #         mdmitem.Elements.Remove(0)
+        #     except:
+        #         pass
+    for mdmelem in mdmitem.Elements:
+        mdmitem.Elements.remove(mdmelem.Name)
     mdmitem.MinValue = 1
     mdmitem.MaxValue = 1
-    mdmitem.elements.Order = 0 # no randomization
+    mdmitem.Elements.Order = 0 # no randomization
     mdmelem = mdmdoc.CreateElement("Yes","Yes")
     mdmelem.Name = "Yes"
     mdmelem.Label = "Yes"
@@ -325,7 +354,7 @@ def generate_patch_stk(variable_specs,mdd_data,config):
                         # first I do straightforward check - check if this item exists at parent level
                         is_conflicting_name = is_conflicting_name or check_if_variable_exists(potential_full_name)
                         # also we should not create items named just "GV" so I'll check against some popular field names
-                        is_conflicting_name = is_conflicting_name or sanitize_item_name(mdmitem.Name) in ['gv','rank','num'] or ('overlap' in sanitize_item_name(mdmitem.Name) and 'iim' in sanitize_item_name(mdmloop.Name))
+                        is_conflicting_name = is_conflicting_name or sanitize_item_name(mdmitem.Name) in ['gv','rank','num'] or ('overlap' in sanitize_item_name(mdmitem.Name) and ('iim' in sanitize_item_name(mdmloop.Name) or 'qim' in sanitize_item_name(mdmloop.Name)))
                 for index,mdmitem in enumerate(mdmloop.Fields):
                     if mdmitem.Name in fields_meaningful:
                         mdmitem_stk = mdmitem
