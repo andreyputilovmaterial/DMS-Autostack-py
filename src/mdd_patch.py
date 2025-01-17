@@ -158,12 +158,12 @@ def patch_generate_scripts_mdata(mdd_data,patch,config):
             variable_is_block = False
             for attr_name, attr_value in chunk['new_attributes'].items():
                 if attr_name=='MDMRead_type':
-                    variable_is_plain = variable_is_plain or re.match(r'^\s*?plain\b',attr_value)
-                    variable_is_categorical = variable_is_categorical or re.match(r'^\s*?plain/(?:categorical|multipunch|singlepunch)',attr_value)
-                    variable_is_loop = variable_is_loop or re.match(r'^\s*?(?:array|grid|loop)\b',attr_value)
-                    variable_is_block = variable_is_block or re.match(r'^\s*?(?:block)\b',attr_value)
+                    variable_is_plain = variable_is_plain or not not re.match(r'^\s*?plain\b',attr_value)
+                    variable_is_categorical = variable_is_categorical or not not re.match(r'^\s*?plain/(?:categorical|multipunch|singlepunch)',attr_value)
+                    variable_is_loop = variable_is_loop or not not re.match(r'^\s*?(?:array|grid|loop)\b',attr_value)
+                    variable_is_block = variable_is_block or not not re.match(r'^\s*?(?:block)\b',attr_value)
                 if attr_name=='MDMRead_is_grid':
-                    variable_is_grid = variable_is_grid or re.match(r'^\s*?true\b',attr_value)
+                    variable_is_grid = variable_is_grid or not not re.match(r'^\s*?true\b',attr_value)
             if variable_is_plain or variable_is_categorical:
                 detect_type = 'plain'
             elif variable_is_loop:

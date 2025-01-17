@@ -47,13 +47,25 @@ CONFIG_ANALYSIS_VALUE_NO = 0
 
 
 
+def trim_dots(s):
+    return re.sub(r'^\s*?\.','',re.sub(r'\.\s*?$','',s,flags=re.I),flags=re.I)
+
 def sanitize_item_name(item_name):
     return re.sub(r'\s*$','',re.sub(r'^\s*','',re.sub(r'\s*([\[\{\]\}\.])\s*',lambda m:'{m}'.format(m=m[1]),item_name,flags=re.I))).lower()
 
 def extract_field_name(item_name):
-    m = re.match(r'^\s*((?:\w.*?\.)?)(\w+)\s*$',item_name,flags=re.I)
+    m = re.match(r'^\s*((?:\w.*?\.)*)(\w+)\s*$',item_name,flags=re.I)
     if m:
         return re.sub(r'\s*\.\s*$','',m[1]),m[2]
+    else:
+        raise ValueError('Can\'t extract field name from "{s}"'.format(s=item_name))
+
+def extract_parent_name(item_name):
+    if item_name=='':
+        return '', ''
+    m = re.match(r'^\s*(\w+)((?:\.\w*?)*)\s*$',item_name,flags=re.I)
+    if m:
+        return trim_dots(m[1]), trim_dots(m[2])
     else:
         raise ValueError('Can\'t extract field name from "{s}"'.format(s=item_name))
 
@@ -126,6 +138,62 @@ def generate_updated_metadata_stk_categorical(mdmitem,mdmitem_script,mdmdoc):
     mdmelem.Properties['Value'] = CONFIG_ANALYSIS_VALUE_NO
     mdmitem.Elements.Add(mdmelem)
     return mdmitem, mdmitem.Script
+
+def generate_updated_metadata_clone_excluding_subfields(name,script,attr_list,mdmroot):
+    detect_type = None
+    variable_is_plain = False
+    variable_is_categorical = False
+    variable_is_loop = False
+    variable_is_grid = False
+    variable_is_block = False
+    for attr_record in attr_list:
+        attr_name = attr_record['name']
+        attr_value = attr_record['value']
+        if attr_name=='type':
+            variable_is_plain = variable_is_plain or not not re.match(r'^\s*?plain\b',attr_value)
+            variable_is_categorical = variable_is_categorical or not not re.match(r'^\s*?plain/(?:categorical|multipunch|singlepunch)',attr_value)
+            variable_is_loop = variable_is_loop or not not re.match(r'^\s*?(?:array|grid|loop)\b',attr_value)
+            variable_is_block = variable_is_block or not not re.match(r'^\s*?(?:block)\b',attr_value)
+        if attr_name=='is_grid':
+            variable_is_grid = variable_is_grid or not not re.match(r'^\s*?true\b',attr_value)
+    if variable_is_plain or variable_is_categorical:
+        detect_type = 'plain'
+    elif variable_is_loop:
+        detect_type = 'loop'
+    elif variable_is_block:
+        detect_type = 'block'
+    mdmitem_add = None
+    if detect_type == 'plain':
+        mdmitem_add = mdmroot.CreateVariable(name, name)
+    elif detect_type == 'loop':
+        if variable_is_grid:
+            mdmitem_add = mdmroot.CreateGrid(name, name)
+        else:
+            mdmitem_add = mdmroot.CreateArray(name, name)
+    elif detect_type == 'block':
+        mdmitem_add = mdmroot.CreateClass(name, name)
+    elif not detect_type:
+        raise ValueError('Cat\'t create object: unrecognized type')
+    else:
+        raise ValueError('Can\'t handle this type of bject: {s}'.format(s=detect_type))
+    if not detect_type:
+        raise ValueError('Failed to create variable, please check all data in the patch specs')
+    for attr_record in attr_list:
+        attr_name = attr_record['name']
+        attr_value = attr_record['value']
+        # if attr_name=='ObjectTypeValue':
+        #     mdmitem_add.ObjectTypeValue = attr_value
+        if attr_name=='DataType':
+            mdmitem_add.DataType = attr_value
+        elif attr_name=='Label':
+            mdmitem_add.Label = attr_value if attr_value else ''
+        else:
+            pass
+    mdmitem_add.Script = script
+    for f in mdmitem_add.Fields:
+        mdmitem_add.Fields.Remove(f.Name)
+    return mdmitem_add
+    # return mdmitem_add.Script
 
 
 
@@ -321,6 +389,45 @@ def generate_patch_stk(variable_specs,mdd_data,config):
                             'new_attributes': mdmitem_stk_attributes,
                             'new_edits': '\n\' {var}\n\' from: {source}\n\' ...\n'.format(var=mdmitem_stk.Name,source=variable_name),
                         }
+
+                        # check if all parents exist, or add if they do not
+                        added_item_name = result_patch['position']
+                        added_item_position = ''
+                        parent,added_item_name = extract_parent_name(added_item_name)
+                        prev_items_added = [ sanitize_item_name(trim_dots('{path}.{v}'.format(path=r['position'],v=r['variable']))) for r in result if r['action']=='variable-new' ]
+                        added_item_fullpath = trim_dots('{p}.{e}'.format(p=added_item_position,e=parent))
+                        while not ( parent=='' ):
+                            found = sanitize_item_name(added_item_fullpath) in prev_items_added
+                            if not found:
+                                added_item_possible_matching_lookup_name = sanitize_item_name(added_item_fullpath)
+                                added_item_possible_matching_lookup_name_part1, added_item_possible_matching_lookup_name_part2 = extract_parent_name(added_item_possible_matching_lookup_name)
+                                if sanitize_item_name(added_item_possible_matching_lookup_name_part1)==sanitize_item_name(loopname):
+                                    added_item_possible_matching_lookup_name = added_item_possible_matching_lookup_name_part2
+                                added_item_matching_var = variable_records[added_item_possible_matching_lookup_name]
+                                mdmitem = generate_updated_metadata_clone_excluding_subfields(parent,added_item_matching_var['scripting'],added_item_matching_var['attributes'],mdmdoc)
+                                added_item_attributes = {}
+                                added_item_attributes['ObjectTypeValue'] = mdmitem.ObjectTypeValue
+                                if added_item_attributes['ObjectTypeValue']==0:
+                                    added_item_attributes['DataType'] = mdmitem.DataType
+                                added_item_attributes['Label'] = mdmitem.Label
+                                for record in added_item_matching_var['attributes']:
+                                    added_item_attributes['MDMRead_'+record['name']] = record['value']
+                                result_patch_parent = {
+                                    'action': 'variable-new',
+                                    'variable': parent,
+                                    'position': added_item_position,
+                                    'debug_data': { 'description': 'added as a parent item when processing {v}'.format(v=variable_name), 'source_from': '???' },
+                                    'new_metadata': mdmitem.Script,
+                                    'new_attributes': added_item_attributes,
+                                    'new_edits': '\.\' {var}\n\' TODO: loop\n'.format(var=added_item_fullpath),
+                                }
+                                result.append(result_patch_parent)
+                            added_item_position = added_item_fullpath
+                            parent,added_item_name = extract_parent_name(added_item_name)
+                            prev_items_added = [ sanitize_item_name(trim_dots('{path}.{v}'.format(path=r['position'],v=r['variable']))) for r in result if r['action']=='variable-new' ]
+                            added_item_fullpath = trim_dots('{p}.{e}'.format(p=added_item_position,e=parent))
+                        
+                        # finally, save and go to next variable
                         result.append(result_patch)
 
             elif process_type=='categorical':
@@ -368,6 +475,44 @@ def generate_patch_stk(variable_specs,mdd_data,config):
                     'new_attributes': mdmitem_stk_attributes,
                     'new_edits': '\n\' {var}\n\' from: {source}\n\' ...\n'.format(var=mdmitem_stk.Name,source=variable_name),
                 }
+
+                # check if all parents exist, or add if they do not
+                added_item_name = result_patch['position']
+                added_item_position = ''
+                parent,added_item_name = extract_parent_name(added_item_name)
+                prev_items_added = [ sanitize_item_name(trim_dots('{path}.{v}'.format(path=r['position'],v=r['variable']))) for r in result if r['action']=='variable-new' ]
+                added_item_fullpath = trim_dots('{p}.{e}'.format(p=added_item_position,e=parent))
+                while not ( parent=='' ):
+                    found = sanitize_item_name(added_item_fullpath) in prev_items_added
+                    if not found:
+                        added_item_possible_matching_lookup_name = sanitize_item_name(added_item_fullpath)
+                        added_item_possible_matching_lookup_name_part1, added_item_possible_matching_lookup_name_part2 = extract_parent_name(added_item_possible_matching_lookup_name)
+                        if sanitize_item_name(added_item_possible_matching_lookup_name_part1)==sanitize_item_name(loopname):
+                            added_item_possible_matching_lookup_name = added_item_possible_matching_lookup_name_part2
+                        added_item_matching_var = variable_records[added_item_possible_matching_lookup_name]
+                        mdmitem = generate_updated_metadata_clone_excluding_subfields(parent,added_item_matching_var['scripting'],added_item_matching_var['attributes'],mdmdoc)
+                        added_item_attributes = {}
+                        added_item_attributes['ObjectTypeValue'] = mdmitem.ObjectTypeValue
+                        if added_item_attributes['ObjectTypeValue']==0:
+                            added_item_attributes['DataType'] = mdmitem.DataType
+                        added_item_attributes['Label'] = mdmitem.Label
+                        for record in added_item_matching_var['attributes']:
+                            added_item_attributes['MDMRead_'+record['name']] = record['value']
+                        result_patch_parent = {
+                            'action': 'variable-new',
+                            'variable': parent,
+                            'position': added_item_position,
+                            'debug_data': { 'description': 'added as a parent item when processing {v}'.format(v=variable_name), 'source_from': '???' },
+                            'new_metadata': mdmitem.Script,
+                            'new_attributes': added_item_attributes,
+                            'new_edits': '\.\' {var}\n\' TODO: loop\n'.format(var=added_item_fullpath),
+                        }
+                        result.append(result_patch_parent)
+                    added_item_position = added_item_fullpath
+                    parent,added_item_name = extract_parent_name(added_item_name)
+                    prev_items_added = [ sanitize_item_name(trim_dots('{path}.{v}'.format(path=r['position'],v=r['variable']))) for r in result if r['action']=='variable-new' ]
+                    added_item_fullpath = trim_dots('{p}.{e}'.format(p=added_item_position,e=parent))
+                
                 result.append(result_patch)
 
             else:
