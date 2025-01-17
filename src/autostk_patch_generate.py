@@ -1,4 +1,5 @@
 # import os, time, re, sys
+from concurrent.futures import process
 import os
 from datetime import datetime, timezone
 # from dateutil import tz
@@ -6,6 +7,11 @@ import argparse
 from pathlib import Path
 import re
 import json
+
+
+
+# import pythoncom
+import win32com.client
 
 
 
@@ -21,9 +27,355 @@ import json
 
 
 
+CONFIG_LOOP_NAME = 'STKLoop'
+
+CONFIG_LOOP_DEFAULT_MDATA = """
+<<LOOPNAME>> -
+Loop
+{
+}
+fields
+(
+	STK_ID
+	Text[..255];
+)expand;
+"""
+
+CONFIG_ANALYSIS_VALUE_YES = 1
+CONFIG_ANALYSIS_VALUE_NO = 0
+
+
+
+
+def sanitize_item_name(item_name):
+    return re.sub(r'\s*$','',re.sub(r'^\s*','',re.sub(r'\s*([\[\{\]\}\.])\s*',lambda m:'{m}'.format(m=m[1]),item_name,flags=re.I))).lower()
+
+def extract_field_name(item_name):
+    m = re.match(r'^\s*((?:\w.*?\.)?)(\w+)\s*$',item_name,flags=re.I)
+    if m:
+        return re.sub(r'\s*\.\s*$','',m[1]),m[2]
+    else:
+        raise ValueError('Can\'t extract field name from "{s}"'.format(s=item_name))
+
+def detect_item_type_from_mdddata_fields_report(item_name):
+    item_name_clean = sanitize_item_name(item_name)
+    if re.match(r'^\s*?$',item_name_clean,flags=re.I):
+        return 'blank'
+    elif re.match(r'^\s*?(\w(?:[\w\[\{\]\}\.]*?\w)?)\.(?:categories|elements)\s*?\[\s*?\{?\s*?(\w+)\s*?\}?\]\s*?$',item_name_clean,flags=re.I):
+        return 'category'
+    elif re.match(r'^\s*?(\w(?:[\w\[\{\]\}\.]*?\w)?)\s*?$',item_name_clean,flags=re.I):
+        return 'variable'
+    else:
+        raise ValueError('Item name is not recognized, is it a variable or a category: "{s}"'.format(s=item_name))
+
+def check_if_variable_exists_based_on_mdd_read_records(records,fullpathandname):
+    def val(s):
+        return not not re.match(r'^(?:\w+\.)*\w+$',s)
+    def norm(name):
+        s = name
+        s = re.sub(r'\[\s*?\{?\s*?(?:\w+|\.\.)?\s*?\}?\s*?\]','',s,flags=re.I)
+        s = re.sub(r'\s','',s,flags=re.I)
+        s = s.lower()
+        if val(s):
+            return s
+        else:
+            raise ValueError('looking for item in records, but name does not follow convention: {s}'.format(s=s))
+    return norm(fullpathandname) in [ norm(s['name']) for s in records ]
+
+
+
+def generate_updated_metadata_rename(mdmitem,mdmitem_script,newname,mdmdoc):
+    mdmitem.Name = newname
+    return mdmitem, mdmitem.Script
+
+def generate_updated_metadata_setlabel(mdmitem,mdmitem_script,newvalue,mdmdoc):
+    mdmitem.Label = newvalue
+    return mdmitem, mdmitem.Script
+
+def generate_updated_metadata_updateproperties(mdmitem,mdmitem_script,newvalues_dict,mdmdoc):
+    for prop_name, prop_value in newvalues_dict.items():
+        def sanitize_prop_name(name):
+            name = re.sub(r'^\s*(.*?)\s*(?:\(.*?\)\s*?)?\s*?$',lambda m: m[1],name,flags=re.I)
+            if re.match(r'^.*?[^\w].*?$',name,flags=re.I):
+                # raise ValueError('Invalid Prop Name: {s}'.format(s=name))
+                return None
+            return name
+        propname_clean = sanitize_prop_name(prop_name)
+        if propname_clean:
+            # if not propname_clean in 
+            mdmitem.Properties[propname_clean] = prop_value
+    return mdmitem, mdmitem.Script
+
+def generate_updated_metadata_stk_categorical(mdmitem,mdmitem_script,mdmdoc):
+    for mdmelem in mdmitem.elements:
+        mdmitem.elements.remove(mdmelem.Name)
+    mdmitem.MinValue = 1
+    mdmitem.MaxValue = 1
+    mdmitem.elements.Order = 0 # no randomization
+    mdmelem = mdmdoc.CreateElement("Yes","Yes")
+    mdmelem.Name = "Yes"
+    mdmelem.Label = "Yes"
+    mdmelem.Type = 0 # mdmlib.ElementTypeConstants.mtCategory
+    # mdmelem.Properties.Item["Value"] = 1 # use this in mrs instead
+    mdmelem.Properties['Value'] = CONFIG_ANALYSIS_VALUE_YES
+    mdmitem.Elements.Add(mdmelem)
+    mdmelem = mdmdoc.CreateElement("No","No")
+    mdmelem.Name = "No"
+    mdmelem.Label = "No"
+    mdmelem.Type = 0 # mdmlib.ElementTypeConstants.mtCategory
+    mdmelem.Properties['Value'] = CONFIG_ANALYSIS_VALUE_NO
+    mdmitem.Elements.Add(mdmelem)
+    return mdmitem, mdmitem.Script
+
+
+
+
+
+
 
 def generate_patch_stk(variable_specs,mdd_data,config):
+
+    # it seems we don't need mdd_data
+    # because we already have it added in variable_specs
+    
+    # here we have a list of items in the output patch file
     result = []
+
+    # # ops that was already done
+    # try:
+    #     mdd_data = ([sect for sect in mdd_data['sections'] if sect['name']=='fields'])[0]['content']
+    # except:
+    #     pass
+    mdd_data = [ field for field in mdd_data if detect_item_type_from_mdddata_fields_report(field['name'])=='variable' ]
+
+    def check_if_variable_exists(item_name):
+        return check_if_variable_exists_based_on_mdd_read_records(mdd_data,item_name)
+
+    # helper variable
+    # prep dict with variable data stored in variable_specs
+    variable_records = {}
+    # for rec in variable_specs['variables_metadata']:
+    for rec in mdd_data:
+        item_name_clean = sanitize_item_name(rec['name'])
+        # rec = rec['records_ref']
+        variable_records[item_name_clean] = rec
+
+    # here we go, first, we should create the loop
+    loopname = CONFIG_LOOP_NAME
+    # avoid using name that is already used
+    counter = 2
+    while check_if_variable_exists(loopname):
+        loopname = '{base_part}_{knt}'.format(base_part=CONFIG_LOOP_NAME,knt=counter)
+        counter = counter + 1
+
+    result_patch = {
+        'action': 'variable-new',
+        'variable': loopname,
+        'position': '', # root
+        'debug_data': { 'description': 'top level stacking loop' },
+        'new_metadata': CONFIG_LOOP_DEFAULT_MDATA.replace('<<LOOPNAME>>',loopname),
+        'new_attributes': { 'ObjectTypeValue': 1, 'Label': None, 'MDMRead_type': 'array' },
+        'new_edits': 'dim brand, cbrand\nfor brand in {loopname}.categories\nwith {loopname}[cbrand]\tcbrand = ccategorical(brand)\n.STK_ID = ctext(brand.name)+"_"+ctext(Respondent.ID)\n\tend with\n\nnext\n'.format(loopname=loopname),
+    }
+    result.append(result_patch)
+
+    # here we go, process every variable
+    # and generate an item in output patch file
+    for variable_name in variable_specs['variables']:
+        try:
+            
+            # read variable data from variable_specs
+            variable_name_clean = sanitize_item_name(variable_name)
+            field_position, field_name = extract_field_name(variable_name)
+            variable_record = variable_records[variable_name_clean]
+            variable_attributes_captured_with_mdd_read = {}
+            if not 'attributes' in variable_record:
+                raise ValueError('Input data does not include "attributes" data, please adjust settings that you use to run mdd_read')
+            for prop in variable_record['attributes']:
+                variable_attributes_captured_with_mdd_read[prop['name']] = prop['value']
+            if not 'type' in variable_attributes_captured_with_mdd_read:
+                raise ValueError('Input data must follow certain format and must include "type" within its list of attributes generated with mdd_read')
+
+                # detect variable type - we are doing it from grabbing data from attributes that were written by mdd_read
+            process_type = None
+            # variable_is_plain = re.match(r'^\s*?plain\b',variable_attributes_captured_with_mdd_read['type'])
+            variable_is_categorical = re.match(r'^\s*?plain/(?:categorical|multipunch|singlepunch)',variable_attributes_captured_with_mdd_read['type'])
+            variable_is_loop = re.match(r'^\s*?(?:array|grid|loop)\b',variable_attributes_captured_with_mdd_read['type'])
+            # variable_is_block = re.match(r'^\s*?(?:block)\b',variable_attributes_captured_with_mdd_read['type'])
+            if variable_is_loop:
+                process_type = 'loop'
+            elif variable_is_categorical:
+                process_type = 'categorical'
+            else:
+                raise ValueError('Can\'t handle this type of variable: {s}'.format(s=variable_attributes_captured_with_mdd_read['type']))
+            
+            # and last but not least - we'll operate with the variable in object-oriented way with native tools from IBM
+            # that's why we need to load variable metadata as it was stored
+            # and we have "scripting" stored for this purpose
+            if not 'scripting' in variable_record:
+                raise ValueError('Input data does not include "scripting" data, please adjust settings that you use to run mdd_read')
+            variable_scripts = variable_record['scripting']
+
+            # please note: we can't just provide updated scripts for the variable
+            # it's useless if it's not a top level variable
+            # we should provide updated scripts for all its parents
+            
+            # and now manipulations with MDD
+            mdmdoc = win32com.client.Dispatch("MDM.Document")
+            mdmdoc.IncludeSystemVariables = False
+            mdmdoc.Contexts.Base = "Analysis"
+            mdmdoc.Contexts.Current = "Analysis"
+            mdmdoc.Script = 'Metadata(en-US, Question, label)\n{added}\nEnd Metadata'.format(added=variable_scripts)
+            mdmitem = mdmdoc.Fields[field_name] # that's top-level!
+            
+            if process_type=='loop':
+                
+                mdmloop = mdmitem
+                is_a_single_item_within_loop = False
+                is_conflicting_name = False
+                fields_meaningful = []
+                for mdmitem in mdmloop.Fields:
+                    meaningless = False
+                    if (mdmitem.DataType if mdmitem.ObjectTypeValue==0 else 0) == 0: # info item, skip
+                        meaningless = True
+                    if sanitize_item_name(mdmitem.Name)==sanitize_item_name('NavButtonSelect'):
+                        meaningless = True # that stupid field from mf-polar
+                    if not meaningless:
+                        fields_meaningful.append(mdmitem.Name)
+                is_a_single_item_within_loop = not ( len(fields_meaningful)>1 )
+                for mdmitem in mdmloop.Fields:
+                    if mdmitem.Name in fields_meaningful:
+                        potential_full_name = re.sub(r'^\s*?\.','','{parent_path}.{item}'.format(parent_path=field_position,item=mdmitem.Name),flags=re.I)
+                        # first I do straightforward check - check if this item exists at parent level
+                        is_conflicting_name = is_conflicting_name or check_if_variable_exists(potential_full_name)
+                        # also we should not create items named just "GV" so I'll check against some popular field names
+                        is_conflicting_name = is_conflicting_name or sanitize_item_name(mdmitem.Name) in ['gv','rank','num'] or ('overlap' in sanitize_item_name(mdmitem.Name) and 'iim' in sanitize_item_name(mdmloop.Name))
+                for index,mdmitem in enumerate(mdmloop.Fields):
+                    if mdmitem.Name in fields_meaningful:
+                        mdmitem_stk = mdmitem
+                        mdmitem_name_backup = mdmitem.Name
+                        mdmitem_stk_script = mdmitem.Script
+                        is_bad_name = False
+                        # and there are less common cases but still happening in disney bes
+                        is_bad_name = is_bad_name or re.match(r'^\s*?((?:Top|T|Bottom|B))(\d*)((?:B|Box))\s*?$',mdmitem.Name,flags=re.I)
+                        name_upd = mdmitem_stk.Name
+                        if is_a_single_item_within_loop:
+                            name_upd = mdmloop.Name
+                        elif is_conflicting_name or is_bad_name:
+                            if index==0 and not is_bad_name:
+                                name_upd = '{part_parent}'.format(part_parent=mdmloop.Name)
+                            else:
+                                name_upd = '{part_parent}_{part_field}'.format(part_parent=mdmloop.Name,part_field=mdmitem_stk.Name)
+                        if not (name_upd == mdmitem_stk.Name):
+                            mdmitem_stk, mdmitem_stk_script = generate_updated_metadata_rename(mdmitem_stk,mdmitem_stk_script,name_upd,mdmdoc)
+                        
+                        # somehow labels disappear when switching from Question context to Analysis context
+                        # so I'll reset it back to original value captured by mdd_read
+                        label_overwrite = mdmitem_stk.Label
+                        variable_record_stk = variable_record
+                        variable_name_stk_clean = '{a}.{b}'.format(a=variable_name_clean,b=sanitize_item_name(mdmitem_name_backup))
+                        if variable_name_stk_clean in variable_records:
+                            variable_record_stk =  variable_records[variable_name_stk_clean]
+                        if variable_record_stk['label']:
+                            label_overwrite = variable_record_stk['label']
+                        mdmitem_stk, mdmitem_stk_script = generate_updated_metadata_setlabel(mdmitem_stk,mdmitem_stk_script,label_overwrite,mdmdoc)
+
+                        # somehow properties are also lost when  switching from Question context to Analysis context
+                        # they are just not displayed in scripts
+                        # so I'll bring it back too
+                        props = {}
+                        for record in variable_record['properties']:
+                            props[record['name']] = record['value']
+                        mdmitem_stk, mdmitem_stk_script = generate_updated_metadata_updateproperties(mdmitem_stk,mdmitem_stk_script,props,mdmdoc)
+                        props = {}
+                        variable_record_stk = variable_record
+                        variable_name_stk_clean = '{a}.{b}'.format(a=variable_name_clean,b=sanitize_item_name(mdmitem_name_backup))
+                        if variable_name_stk_clean in variable_records:
+                            variable_record_stk =  variable_records[variable_name_stk_clean]
+                        for record in variable_record_stk['properties']:
+                            props[record['name']] = record['value']
+                        mdmitem_stk, mdmitem_stk_script = generate_updated_metadata_updateproperties(mdmitem_stk,mdmitem_stk_script,props,mdmdoc)
+
+                        # and prepare attributes
+                        mdmitem_stk_attributes = {}
+                        mdmitem_stk_attributes['ObjectTypeValue'] = mdmitem_stk.ObjectTypeValue
+                        if mdmitem_stk_attributes['ObjectTypeValue']==0:
+                            mdmitem_stk_attributes['DataType'] = mdmitem_stk.DataType
+                        mdmitem_stk_attributes['Label'] = mdmitem_stk.Label
+                        variable_record_stk = variable_record
+                        variable_name_stk_clean = '{a}.{b}'.format(a=variable_name_clean,b=sanitize_item_name(mdmitem_name_backup))
+                        if variable_name_stk_clean in variable_records:
+                            variable_record_stk =  variable_records[variable_name_stk_clean]
+                        for record in variable_record_stk['attributes']:
+                            mdmitem_stk_attributes['MDMRead_'+record['name']] = record['value']
+
+                        field_position_stk = '{loopname}{path_nested}'.format(loopname=loopname,path_nested='.{path_persisted}'.format(path_persisted=field_position) if field_position else '')
+
+                        # done, return results
+                        result_patch = {
+                            'action': 'variable-new',
+                            'variable': mdmitem_stk.Name,
+                            'position': field_position_stk,
+                            'debug_data': { 'source_from': variable_name },
+                            'new_metadata': mdmitem_stk_script,
+                            'new_attributes': mdmitem_stk_attributes,
+                            'new_edits': '\n\' {var}\n\' from: {source}\n\' ...\n'.format(var=mdmitem_stk.Name,source=variable_name),
+                        }
+                        result.append(result_patch)
+
+            elif process_type=='categorical':
+                
+                mdmitem_stk, mdmitem_stk_script = generate_updated_metadata_stk_categorical(mdmitem,variable_scripts,mdmdoc)
+                mdmitem_stk, mdmitem_stk_script = generate_updated_metadata_rename(mdmitem,variable_scripts,'{part_old}{part_added}'.format(part_old=mdmitem.Name,part_added='_YN'),mdmdoc)
+
+                field_position_stk = '{loopname}{path_nested}'.format(loopname=loopname,path_nested='.{path_persisted}'.format(path_persisted=field_position) if field_position else '')
+
+                # somehow labels disappear when switching from Question context to Analysis context
+                # so I'll reset it back to original value captured by mdd_read
+                # label_overwrite = mdmitem_stk.Label
+                label_overwrite = mdmitem_stk.Label
+                variable_record_stk = variable_record
+                if variable_record_stk['label']:
+                    label_overwrite = variable_record_stk['label']
+                mdmitem_stk, mdmitem_stk_script = generate_updated_metadata_setlabel(mdmitem_stk,mdmitem_stk_script,label_overwrite,mdmdoc)
+
+                # somehow properties are also lost when  switching from Question context to Analysis context
+                # they are just not displayed in scripts
+                # so I'll bring it back too
+                props = {}
+                variable_record_stk = variable_record
+                for record in variable_record_stk['properties']:
+                    props[record['name']] = record['value']
+                mdmitem_stk, mdmitem_stk_script = generate_updated_metadata_updateproperties(mdmitem_stk,mdmitem_stk_script,props,mdmdoc)
+
+                # and prepare attributes
+                mdmitem_stk_attributes = {}
+                mdmitem_stk_attributes['ObjectTypeValue'] = mdmitem_stk.ObjectTypeValue
+                if mdmitem_stk_attributes['ObjectTypeValue']==0:
+                    mdmitem_stk_attributes['DataType'] = mdmitem_stk.DataType
+                mdmitem_stk_attributes['Label'] = mdmitem_stk.Label
+                variable_record_stk = variable_record
+                for record in variable_record_stk['attributes']:
+                    mdmitem_stk_attributes['MDMRead_'+record['name']] = record['value']
+
+                # done, return results
+                result_patch = {
+                    'action': 'variable-new',
+                    'variable': mdmitem_stk.Name,
+                    'position': field_position_stk,
+                    'debug_data': { 'source_from': variable_name },
+                    'new_metadata': mdmitem_stk_script,
+                    'new_attributes': mdmitem_stk_attributes,
+                    'new_edits': '\n\' {var}\n\' from: {source}\n\' ...\n'.format(var=mdmitem_stk.Name,source=variable_name),
+                }
+                result.append(result_patch)
+
+            else:
+                raise ValueError('Generating updated item metadata: can\'t handle this type, not implemented: {s}'.format(s=process_type))
+
+        except Exception as e:
+            print('Failed when processing variable: {s}'.format(s=variable_name))
+            raise e
     return result
 
 

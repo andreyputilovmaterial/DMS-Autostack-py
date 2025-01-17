@@ -42,7 +42,7 @@ ECHO -
 ECHO 1. read MDD
 ECHO read from: %MDD_FILE%
 ECHO write to: .json
-python dist/mdmautostktoolsap_bundle.py --program read_mdd --mdd "%MDD_FILE%" --config-features label,attributes,properties,scripting --config-section fields
+python dist/mdmautostktoolsap_bundle.py --program read_mdd --mdd "%MDD_FILE%" --config-features label,attributes,properties,scripting --config-section fields --config-contexts Analysis,Question
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
 
 @REM IF %CONFIG_PRODUCE_HTML% (

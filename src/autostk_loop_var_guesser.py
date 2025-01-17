@@ -37,7 +37,7 @@ CONFIG_MAX_WARNINGS = 64
 
 
 def sanitize_item_name(item_name):
-    return re.sub(r'\s*$','',re.sub(r'^\s*','',re.sub(r'\s*([\[\{\]\}\.])\s*',lambda m:'{m}'.format(m=m[1]),item_name,flags=re.I)))
+    return re.sub(r'\s*$','',re.sub(r'^\s*','',re.sub(r'\s*([\[\{\]\}\.])\s*',lambda m:'{m}'.format(m=m[1]),item_name,flags=re.I))).lower()
 
 def detect_item_type(item_name):
     item_name_clean = sanitize_item_name(item_name)
@@ -77,6 +77,12 @@ def find_adjusted_category_priority(category,config):
     elif( re.match(r'^\s*?(?:Yes|No)\s*?$',category['name'],flags=re.DOTALL|re.ASCII|re.I) ):
         ratio = .01
     return ratio
+
+
+
+
+# class HTMLReport # TODO:
+
 
 
 
