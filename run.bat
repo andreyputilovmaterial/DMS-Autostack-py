@@ -3,7 +3,7 @@ SETLOCAL enabledelayedexpansion
 
 
 @REM ::insert your files here
-SET "MDD_FILE=..\tests\v0.001\R2400814M.mdd"
+SET "MDD_FILE=..\tests\v0.001\R2401582.mdd"
 
 
 

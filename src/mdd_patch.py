@@ -26,6 +26,9 @@ import win32com.client
 
 
 
+def find_code_position_marker(path):
+    return '\' #mdmautostkap-code-marker: ({path})'.format(path=path)
+
 
 
 def normalize_line_breaks(s):
@@ -229,18 +232,40 @@ def patch_generate_scripts_mdata(mdd_data,patch,config):
 
 def patch_generate_scripts_edits(mdd_data,patch,config):
     
-    result = ''
+    result = '\n{ins_marker}\n'.format(ins_marker='\' #mdmautostkap-code-marker: ()')
     t = datetime.now()
 
     mdd_data = [ field for field in mdd_data if detect_item_type_from_mdddata_fields_report(field['name'])=='variable' ]
-    def check_if_variable_exists(item_name):
-        return check_if_variable_exists_based_on_mdd_read_records(mdd_data,item_name)
+    # def check_if_variable_exists(item_name):
+    #     return check_if_variable_exists_based_on_mdd_read_records(mdd_data,item_name)
     
     for chunk in patch:
         try:
             action = chunk['action']
             if action=='variable-new':
-                result = '{old_code}{linebreak}{added_code}'.format(old_code=result,linebreak='\n',added_code=chunk['new_edits'])
+                path = chunk['position']
+                prefix = chunk['new_edits_nestedcode_address'] if 'new_edits_nestedcode_address' in chunk else ''
+                code_to_add = chunk['new_edits']
+                position_marker = find_code_position_marker(path)
+                marker_nested_code = chunk['new_edits_nestedcode_position'] if 'new_edits_nestedcode_position' in chunk else '\' #mdmautostkap-code-marker: '
+                # prepare place where it is added
+                position = len(result)-1
+                if position_marker in result:
+                    position = result.index(position_marker)
+                    position = [m for m in re.finditer(r'[^\S\r\n]*$',result[:position],flags=re.DOTALL)][0].span(0)[0]
+                result_leadingpart = result[:position]
+                result_trailingpart = result[position:]
+                # prepare and format that code_to_add
+                indents = [m for m in re.finditer(r'^([^\S\r\n]*).*?$',result_trailingpart,flags=re.DOTALL)][0].span(1)
+                indents = result_trailingpart[indents[0]:indents[1]]
+                code_to_add = '\n'+re.sub(r'\n$','',code_to_add)
+                code_to_add = re.sub(r'\n','\n'+indents,code_to_add)
+                code_to_add = code_to_add.replace('<<PATH>>',prefix)
+                code_to_add = code_to_add[1:] + '\n'
+                if marker_nested_code in code_to_add:
+                    code_to_add = code_to_add.replace(marker_nested_code,marker_nested_code+'({fullpath})'.format(fullpath='{path}{item}'.format(item=chunk['variable'],path='.{p}'.format(p=path) if path else '')))
+                result = result_leadingpart + code_to_add + result_trailingpart
+                # result = '{old_code}{linebreak}{added_code}'.format(old_code=result,linebreak='\n',added_code=chunk['new_edits'])
             else:
                 raise ValueError('Patch: action = "{s}": not implemented'.format(s=action))
         except Exception as e:

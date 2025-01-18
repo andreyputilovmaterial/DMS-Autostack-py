@@ -369,7 +369,9 @@ def generate_patch_stk(variable_specs,mdd_data,config):
         'debug_data': { 'description': 'top level stacking loop' },
         'new_metadata': CONFIG_LOOP_DEFAULT_MDATA.replace('<<LOOPNAME>>',loopname).replace('<<CATEGORIES>>',categories_scripts),
         'new_attributes': { 'ObjectTypeValue': 1, 'Label': None, 'MDMRead_type': 'array' },
-        'new_edits': 'dim brand, cbrand\nfor brand in {loopname}.categories\nwith {loopname}[cbrand]\tcbrand = ccategorical(brand)\n.STK_ID = ctext(brand.name)+"_"+ctext(Respondent.ID)\n\tend with\n\nnext\n'.format(loopname=loopname),
+        'new_edits': 'dim brand, cbrand\n\n\' {ins_loopname}\nfor brand in {ins_loopname}.categories\ncbrand = ccategorical(brand)\nwith {ins_loopname}[cbrand]\n	\n	\n	\' STK_ID\n	.STK_ID = ctext(brand.name)+"_"+ctext(Respondent.ID)\n	\n	\' STK_Iteration\n	.STK_Iteration = cbrand\n	\n	{ins_marker}\n	\nend with\nnext\n'.format(ins_loopname=loopname,ins_marker='\' #mdmautostkap-code-marker: '),
+        'new_edits_nestedcode_position': '\' #mdmautostkap-code-marker: ',
+        'new_edits_nestedcode_address': '.',
     }
     result.append(result_patch)
 
@@ -547,7 +549,9 @@ def generate_patch_stk(variable_specs,mdd_data,config):
                                     'debug_data': { 'description': 'added as a parent item when processing {v}'.format(v=variable_name), 'source_from': '???' },
                                     'new_metadata': mdmitem.Script,
                                     'new_attributes': added_item_attributes,
-                                    'new_edits': '\n\n\' {var}\n\' TODO: loop\n'.format(var=added_item_fullpath),
+                                    'new_edits': '\n\n\' {qname}\ndim iter_stkdata_{qname}, iter_sourcedata_{qname}\nfor iter_stkdata_{qname} in <<PATH>>{qname}\n	set iter_sourcedata_{qname} = SourceVar[iter_stkdata_{qname}.questionname]\n	\' prefix: iter_stkdata_{qname}\n	\n	\' #mdmautostkap-code-marker: \n	\nnext\n'.format(qname=added_item_fullpath),
+                                    'new_edits_nestedcode_position': '\' #mdmautostkap-code-marker: ',
+                                    'new_edits_nestedcode_address': '.',
                                 }
                                 result.append(result_patch_parent)
                             added_item_position = added_item_fullpath
@@ -635,7 +639,9 @@ def generate_patch_stk(variable_specs,mdd_data,config):
                             'debug_data': { 'description': 'added as a parent item when processing {v}'.format(v=variable_name), 'source_from': '???' },
                             'new_metadata': mdmitem.Script,
                             'new_attributes': added_item_attributes,
-                            'new_edits': '\.\' {var}\n\' TODO: loop\n'.format(var=added_item_fullpath),
+                            'new_edits': '\n\n\' {qname}\ndim iter_stkdata_{qname}, iter_sourcedata_{qname}\nfor iter_stkdata_{qname} in <<PATH>>{qname}\n	set iter_sourcedata_{qname} = SourceVar[iter_stkdata_{qname}.questionname]\n	\' prefix: iter_stkdata_{qname}\n	\n	\' #mdmautostkap-code-marker: \n	\nnext\n'.format(qname=added_item_fullpath),
+                            'new_edits_nestedcode_position': '\' #mdmautostkap-code-marker: ',
+                            'new_edits_nestedcode_address': '.',
                         }
                         result.append(result_patch_parent)
                     added_item_position = added_item_fullpath
