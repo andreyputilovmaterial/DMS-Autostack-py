@@ -18,6 +18,11 @@ SET "CONFIG_PREFER_CATEGORIES=Disney,Mailchimp,Nike"
 
 
 
+SET "CONFIG_PRODUCE_HTML_MDD=1==1"
+
+
+
+
 
 
 @REM :: go
@@ -45,12 +50,12 @@ ECHO write to: .json
 python dist/mdmautostktoolsap_bundle.py --program read_mdd --mdd "%MDD_FILE%" --config-features label,attributes,properties,scripting --config-section fields --config-contexts Analysis,Question
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
 
-@REM IF %CONFIG_PRODUCE_HTML% (
-@REM     ECHO -
-@REM     ECHO 1.1. generate html
-@REM     python dist/mdmautostktoolsap_bundle.py --program report --inpfile "%MDD_FILE_SCHEME%"
-@REM     if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
-@REM )
+IF %CONFIG_PRODUCE_HTML_MDD% (
+    ECHO -
+    ECHO 1.1. generate html
+    python dist/mdmautostktoolsap_bundle.py --program report --inpfile "%MDD_FILE_SCHEME%"
+    if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
+)
 
 ECHO -
 ECHO 2. decide on which questions and loops should be stacked

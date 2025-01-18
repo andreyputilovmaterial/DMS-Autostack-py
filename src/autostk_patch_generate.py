@@ -1,4 +1,5 @@
 # import os, time, re, sys
+from ast import excepthandler
 from concurrent.futures import process
 import os
 from datetime import datetime, timezone
@@ -56,6 +57,9 @@ CONFIG_ANALYSIS_VALUE_NO = 0
 def trim_dots(s):
     return re.sub(r'^\s*?\.','',re.sub(r'\.\s*?$','',s,flags=re.I),flags=re.I)
 
+def linebreaks_remove(s):
+    return re.sub(r'(?:\r\n|\r|\n)',' ',s,flags=re.I)
+
 def sanitize_item_name(item_name):
     return re.sub(r'\s*$','',re.sub(r'^\s*','',re.sub(r'\s*([\[\{\]\}\.])\s*',lambda m:'{m}'.format(m=m[1]),item_name,flags=re.I))).lower()
 
@@ -74,6 +78,13 @@ def extract_parent_name(item_name):
         return trim_dots(m[1]), trim_dots(m[2])
     else:
         raise ValueError('Can\'t extract field name from "{s}"'.format(s=item_name))
+
+def extract_category_name(item_name):
+    m = re.match(r'^\s*(\w+.*?\w)\.(?:categories|elements)\s*?\[\s*?\{?\s*?(\w+)\s*?\}?\s*?\]\s*$',item_name,flags=re.I)
+    if m:
+        return trim_dots(m[1]), trim_dots(m[2])
+    else:
+        raise ValueError('Can\'t extract category name from "{s}"'.format(s=item_name))
 
 def detect_item_type_from_mdddata_fields_report(item_name):
     item_name_clean = sanitize_item_name(item_name)
@@ -135,7 +146,7 @@ def generate_updated_metadata_stk_categorical(mdmitem,mdmitem_script,mdmdoc):
     if mdmitem.Elements.IsReference:
         # TODO: this is not 100% correct, the regular expression can match the word "categorical" somewhere in label
         # but I cen't find any better solution
-        mdmitem.Script = re.sub(r'^(.*)(\bcategorical\b)(\s*?(?:\{.*?\})?\s*?(?:\w+\s*?\(.*?\))?\s*?;?\s*?)$',lambda m: '{a}{b}{c}'.format(a=m[1],b=m[2],c=' { Yes "Yes" };'),mdmitem.Script,flags=re.I|re.DOTALL)
+        mdmitem.Script = re.sub(r'^(.*)(\bcategorical\b)(\s*?(?:\{.*?\})?\s*?(?:\w+\s*?(?:\(.*?\))?)?\s*?;?\s*?)$',lambda m: '{a}{b}{c}'.format(a=m[1],b=m[2],c=' { Yes "Yes" };'),mdmitem.Script,flags=re.I|re.DOTALL)
         # for attempt in range(0,2):
         #     try:
         #         mdm_elem_new = mdmdoc.CreateElements("","")
@@ -230,6 +241,16 @@ def generate_updated_metadata_clone_excluding_subfields(name,script,attr_list,md
     return mdmitem_add
     # return mdmitem_add.Script
 
+def generate_category_metadata(name,label,properties,mdmdoc):
+    mdmelem = mdmdoc.CreateElement(name,name)
+    mdmelem.Name = name
+    mdmelem.Label = label
+    mdmelem.Type = 0 # mdmlib.ElementTypeConstants.mtCategory
+    for prop in properties:
+        # mdmelem.Properties.Item[prop['name']] = prop['value'] # use this in mrs instead
+        mdmelem.Properties[prop['name']] = prop['value']
+    return mdmelem.Script
+
 
 
 
@@ -238,9 +259,6 @@ def generate_updated_metadata_clone_excluding_subfields(name,script,attr_list,md
 
 def generate_patch_stk(variable_specs,mdd_data,config):
 
-    # it seems we don't need mdd_data
-    # because we already have it added in variable_specs
-    
     # here we have a list of items in the output patch file
     result = []
 
@@ -249,16 +267,17 @@ def generate_patch_stk(variable_specs,mdd_data,config):
     #     mdd_data = ([sect for sect in mdd_data['sections'] if sect['name']=='fields'])[0]['content']
     # except:
     #     pass
-    mdd_data = [ field for field in mdd_data if detect_item_type_from_mdddata_fields_report(field['name'])=='variable' ]
+    mdd_data_questions = [ field for field in mdd_data if detect_item_type_from_mdddata_fields_report(field['name'])=='variable' ]
+    mdd_data_categories = [ cat for cat in mdd_data if detect_item_type_from_mdddata_fields_report(cat['name'])=='category' ]
 
     def check_if_variable_exists(item_name):
-        return check_if_variable_exists_based_on_mdd_read_records(mdd_data,item_name)
+        return check_if_variable_exists_based_on_mdd_read_records(mdd_data_questions,item_name)
 
     # helper variable
     # prep dict with variable data stored in variable_specs
     variable_records = {}
     # for rec in variable_specs['variables_metadata']:
-    for rec in mdd_data:
+    for rec in mdd_data_questions:
         item_name_clean = sanitize_item_name(rec['name'])
         # rec = rec['records_ref']
         variable_records[item_name_clean] = rec
@@ -271,7 +290,74 @@ def generate_patch_stk(variable_specs,mdd_data,config):
         loopname = '{base_part}_{knt}'.format(base_part=CONFIG_LOOP_NAME,knt=counter)
         counter = counter + 1
 
-    categories_scripts = ' Marvel "Marvel" ' # TODO:
+    categories_scripts = ''
+    mdmdoc = win32com.client.Dispatch("MDM.Document")
+    mdmdoc.IncludeSystemVariables = False
+    mdmdoc.Contexts.Base = "Analysis"
+    mdmdoc.Contexts.Current = "Analysis"
+    mdmdoc.Script = 'Metadata(en-US, Question, label)\n\nEnd Metadata'
+    cat_stk_data = []
+    for cat_stk_name in [ sanitize_item_name(c) for c in variable_specs['categories'] ]:
+        cat_label_frequency_data = {}
+        cat_analysisvalue_frequency_data = {}
+        for cat_mdd in mdd_data_categories:
+            question_name, category_name = extract_category_name(cat_mdd['name'])
+            question_name_clean, category_name_clean = sanitize_item_name(question_name), sanitize_item_name(category_name)
+            category_label = cat_mdd['label']
+            category_properties_list = cat_mdd['properties']
+            category_analysisvalue = None
+            for prop in category_properties_list:
+                if sanitize_item_name(prop['name'])==sanitize_item_name('value'):
+                    if prop['value']:
+                        try:
+                            value = int(prop['value'])
+                            category_analysisvalue = value
+                        except:
+                            pass
+            if category_name_clean==cat_stk_name:
+                cat_label_id = category_label
+                if cat_label_id in cat_label_frequency_data:
+                    cat_label_frequency_data[cat_label_id]['count'] = cat_label_frequency_data[cat_label_id]['count'] + 1
+                    cat_label_frequency_data[cat_label_id]['questions_used'].append(question_name_clean) # why storing this data, I don't use it
+                else:
+                    cat_label_frequency_data[cat_label_id] = {
+                        'name': category_name,
+                        'questions_used': [question_name_clean], # why storing this data, I don't use it
+                        'label': category_label,
+                        'count': 1
+                    }
+                cat_analysisvalue_id = '{s}'.format(s=category_analysisvalue)
+                if category_analysisvalue and category_analysisvalue>0:
+                    if cat_analysisvalue_id in cat_analysisvalue_frequency_data:
+                        cat_analysisvalue_frequency_data[cat_analysisvalue_id]['count'] = cat_analysisvalue_frequency_data[cat_analysisvalue_id]['count'] + 1
+                    else:
+                        cat_analysisvalue_frequency_data[cat_analysisvalue_id] = {
+                            'count': 1,
+                            'value': category_analysisvalue,
+                        }
+        cat_label_frequency_data = [ cat for _, cat in cat_label_frequency_data.items() ]
+        if len(cat_label_frequency_data)==0:
+            cat_label_frequency_data = [{
+                'name': cat_stk_data,
+                'questions_used': [],
+                'label': cat_stk_data,
+                'count': 0
+            }]
+        cat_label_frequency_data = sorted(cat_label_frequency_data,key=lambda c: -c['count'])
+        cat_label_data = cat_label_frequency_data[0]
+        cat_analysisvalue_frequency_data = [ cat for _, cat in cat_analysisvalue_frequency_data.items() ]
+        cat_analysisvalue_frequency_data = sorted(cat_analysisvalue_frequency_data,key=lambda c: -c['count'])
+        cat_analysisvalue_data = cat_analysisvalue_frequency_data[0]['value'] if len(cat_analysisvalue_frequency_data)>0 else None
+        cat_stk_data.append({
+            'cat_id': cat_stk_name,
+            'name': cat_label_data['name'],
+            'label': cat_label_data['label'],
+            'questions_used': cat_label_data['questions_used'], # why storing this data, I don't use it
+            'properties': [ { 'name': 'Value', 'value': cat_analysisvalue_data } ] if cat_analysisvalue_data else [],
+        })
+    categories_scripts = ',\n'.join([ generate_category_metadata(cat['name'],cat['label'],cat['properties'],mdmdoc) for cat in cat_stk_data ])
+
+
 
     result_patch = {
         'action': 'variable-new',
@@ -406,6 +492,7 @@ def generate_patch_stk(variable_specs,mdd_data,config):
                         mdmitem_stk_attributes['ObjectTypeValue'] = mdmitem_stk.ObjectTypeValue
                         if mdmitem_stk_attributes['ObjectTypeValue']==0:
                             mdmitem_stk_attributes['DataType'] = mdmitem_stk.DataType
+                        mdmitem_stk.Label = linebreaks_remove(mdmitem_stk.Label)
                         mdmitem_stk_attributes['Label'] = mdmitem_stk.Label
                         variable_record_stk = variable_record
                         variable_name_stk_clean = '{a}.{b}'.format(a=variable_name_clean,b=sanitize_item_name(mdmitem_name_backup))
@@ -422,7 +509,7 @@ def generate_patch_stk(variable_specs,mdd_data,config):
                             'variable': mdmitem_stk.Name,
                             'position': field_position_stk,
                             'debug_data': { 'source_from': variable_name },
-                            'new_metadata': mdmitem_stk_script,
+                            'new_metadata': mdmitem_stk.Script,
                             'new_attributes': mdmitem_stk_attributes,
                             'new_edits': '\n\' {var}\n\' from: {source}\n\' ...\n'.format(var=mdmitem_stk.Name,source=variable_name),
                         }
@@ -446,6 +533,7 @@ def generate_patch_stk(variable_specs,mdd_data,config):
                                 added_item_attributes['ObjectTypeValue'] = mdmitem.ObjectTypeValue
                                 if added_item_attributes['ObjectTypeValue']==0:
                                     added_item_attributes['DataType'] = mdmitem.DataType
+                                mdmitem.Label = linebreaks_remove(mdmitem.Label)
                                 added_item_attributes['Label'] = mdmitem.Label
                                 for record in added_item_matching_var['attributes']:
                                     added_item_attributes['MDMRead_'+record['name']] = record['value']
@@ -456,7 +544,7 @@ def generate_patch_stk(variable_specs,mdd_data,config):
                                     'debug_data': { 'description': 'added as a parent item when processing {v}'.format(v=variable_name), 'source_from': '???' },
                                     'new_metadata': mdmitem.Script,
                                     'new_attributes': added_item_attributes,
-                                    'new_edits': '\.\' {var}\n\' TODO: loop\n'.format(var=added_item_fullpath),
+                                    'new_edits': '\n\n\' {var}\n\' TODO: loop\n'.format(var=added_item_fullpath),
                                 }
                                 result.append(result_patch_parent)
                             added_item_position = added_item_fullpath
@@ -497,6 +585,7 @@ def generate_patch_stk(variable_specs,mdd_data,config):
                 mdmitem_stk_attributes['ObjectTypeValue'] = mdmitem_stk.ObjectTypeValue
                 if mdmitem_stk_attributes['ObjectTypeValue']==0:
                     mdmitem_stk_attributes['DataType'] = mdmitem_stk.DataType
+                mdmitem_stk.Label = linebreaks_remove(mdmitem_stk.Label)
                 mdmitem_stk_attributes['Label'] = mdmitem_stk.Label
                 variable_record_stk = variable_record
                 for record in variable_record_stk['attributes']:
@@ -508,7 +597,7 @@ def generate_patch_stk(variable_specs,mdd_data,config):
                     'variable': mdmitem_stk.Name,
                     'position': field_position_stk,
                     'debug_data': { 'source_from': variable_name },
-                    'new_metadata': mdmitem_stk_script,
+                    'new_metadata': mdmitem_stk.Script,
                     'new_attributes': mdmitem_stk_attributes,
                     'new_edits': '\n\' {var}\n\' from: {source}\n\' ...\n'.format(var=mdmitem_stk.Name,source=variable_name),
                 }
@@ -532,6 +621,7 @@ def generate_patch_stk(variable_specs,mdd_data,config):
                         added_item_attributes['ObjectTypeValue'] = mdmitem.ObjectTypeValue
                         if added_item_attributes['ObjectTypeValue']==0:
                             added_item_attributes['DataType'] = mdmitem.DataType
+                        mdmitem.Label = linebreaks_remove(mdmitem.Label)
                         added_item_attributes['Label'] = mdmitem.Label
                         for record in added_item_matching_var['attributes']:
                             added_item_attributes['MDMRead_'+record['name']] = record['value']
@@ -643,13 +733,13 @@ def entry_point(runscript_config={}):
     
     print('{script_name}: script started at {dt}'.format(dt=time_start,script_name=script_name))
 
-    mdd_data = []
+    mdd_data_questions = []
     try:
-        mdd_data = ([sect for sect in inp_mdd_scheme['sections'] if sect['name']=='fields'])[0]['content']
+        mdd_data_questions = ([sect for sect in inp_mdd_scheme['sections'] if sect['name']=='fields'])[0]['content']
     except:
         pass
 
-    result = generate_patch_stk(variable_specs,mdd_data,config)
+    result = generate_patch_stk(variable_specs,mdd_data_questions,config)
     
     result_json = json.dumps(result, indent=4)
 

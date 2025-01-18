@@ -88,8 +88,6 @@ def find_adjusted_category_priority(category,config):
 
 def find_variables_to_stack(fields_all,config={}):
     
-    result_variables = []
-    result_categories = []
     result_debug_data = {}
     dict_questions = {}
     dict_categories = {}
@@ -221,8 +219,7 @@ def find_variables_to_stack(fields_all,config={}):
     key_categories = sorted(key_categories,key=cmp_key_categories_by_weights)[:config['num_categories_pick']]
     # print('Selected categories: {key_categories}'.format(key_categories=key_categories))
     
-    for cat in key_categories:
-        result_categories.append('{qname}'.format(qname=cat))
+    result_variables = []
     stk_questions_combined_list = dict.keys(dict_questions) if len(key_categories)>0 else []
     for item in key_categories:
         # stk_questions_combined_list.extend([ q for q in dict_categories[item]['used'] if not q in stk_questions_combined_list])
@@ -230,6 +227,28 @@ def find_variables_to_stack(fields_all,config={}):
     # print('the following questions will be stacked: {q}'.format(q=[dict_questions[q]['name'] for q in stk_questions_combined_list]))
     for cat in [dict_questions[q]['name'] for q in stk_questions_combined_list]:
         result_variables.append('{qname}'.format(qname=cat))
+    
+    # result_categories = []
+    result_category_frequencies = {}
+    orig_order_index = 0
+    for q in result_variables:
+        cats_add = dict_questions[q]['iterations']
+        # result_categories.extend([catname for catname in cats_add if not catname in result_categories])
+        for cat in cats_add:
+            if not cat in result_category_frequencies:
+                result_category_frequencies[cat] = { 'name': cat, 'count': 1, 'orig_order_index': orig_order_index }
+                orig_order_index = orig_order_index + 1
+            else:
+                result_category_frequencies[cat]['count'] = result_category_frequencies[cat]['count'] + 1
+    result_category_frequencies = [ cat for _, cat in result_category_frequencies.items() ]
+    result_category_frequencies = sorted(result_category_frequencies,key=lambda c: -c['count']*100+c['orig_order_index']*(1/len(cats_add))  )
+    # if not (len(result_category_frequencies)>0):
+    #     raise ValueError('Something went wrong, no categories found')
+    key_cat_cutoff_index = len(result_category_frequencies) - int(len(result_category_frequencies)*(.69))
+    key_cutoff_value = result_category_frequencies[key_cat_cutoff_index]['count'] if len(result_category_frequencies)>0 else len(result_variables)
+    result_category_frequencies = [ cat for cat in result_category_frequencies if cat['count']>=key_cutoff_value ]
+    result_category_frequencies = [ cat['name'] for cat in result_category_frequencies ]
+    result_categories = result_category_frequencies
     
     result_debug_data = {
         'key_categories': sorted( [ cat for _,cat in dict_categories.items() if 'w' in cat ], key=lambda c: -c['w'] ),

@@ -11,6 +11,7 @@ import traceback
 if __name__ == '__main__':
     # run as a program
     from lib.mdmreadpy import read_mdd
+    from lib.mdmreadpy.lib.mdmreportpy import report_create
     import autostk_loop_var_guesser 
     import autostk_patch_generate
     import mdd_patch
@@ -18,6 +19,7 @@ if __name__ == '__main__':
 elif '.' in __name__:
     # package
     from .lib.mdmreadpy import read_mdd
+    from .lib.mdmreadpy.lib.mdmreportpy import report_create
     from . import autostk_loop_var_guesser
     from . import autostk_patch_generate
     from . import mdd_patch
@@ -25,6 +27,7 @@ elif '.' in __name__:
 else:
     # included with no parent package
     from lib.mdmreadpy import read_mdd
+    from lib.mdmreadpy.lib.mdmreportpy import report_create
     import autostk_loop_var_guesser
     import autostk_patch_generate
     import mdd_patch
@@ -41,6 +44,9 @@ from datetime import datetime, timezone
 
 def call_read_mdd_program():
     return read_mdd.entry_point({'arglist_strict':False})
+
+def call_report_program():
+    return report_create.entry_point({'arglist_strict':False})
 
 def call_autostk_loop_var_guesser_program():
     return autostk_loop_var_guesser.entry_point({'arglist_strict':False})
@@ -60,6 +66,7 @@ def call_autostk_temp_text_program():
 
 run_programs = {
     'read_mdd': call_read_mdd_program,
+    'report': call_report_program,
     'mdd-autostacking-pick-variables': call_autostk_loop_var_guesser_program,
     'mdd-autostacking-prepare-patch': call_autostk_generate_patch_program,
     'mdd-patch': call_mdd_patch_program,
