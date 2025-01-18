@@ -167,6 +167,9 @@ def generate_updated_metadata_stk_categorical(mdmitem,mdmitem_script,mdmdoc):
         #         pass
     for mdmelem in mdmitem.Elements:
         mdmitem.Elements.remove(mdmelem.Name)
+    # clean out responses for "Other" - I think we don't need it in stacked, or should it be configurable?
+    for mdmfield in mdmitem.HelperFields:
+        mdmitem.HelperFields.remove(mdmfield.Name)
     mdmitem.MinValue = 1
     mdmitem.MaxValue = 1
     mdmitem.Elements.Order = 0 # no randomization

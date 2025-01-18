@@ -244,6 +244,8 @@ def find_variables_to_stack(fields_all,config={}):
     result_category_frequencies = sorted(result_category_frequencies,key=lambda c: -c['count']*100+c['orig_order_index']*(1/len(cats_add))  )
     # if not (len(result_category_frequencies)>0):
     #     raise ValueError('Something went wrong, no categories found')
+    # I al also trimming category list to only popular entries
+    # and excluding None here (should this be configurable)?
     key_cat_cutoff_index = len(result_category_frequencies) - int(len(result_category_frequencies)*(.69))
     key_cutoff_value = result_category_frequencies[key_cat_cutoff_index]['count'] if len(result_category_frequencies)>0 else len(result_variables)
     result_category_frequencies = [ cat for cat in result_category_frequencies if cat['count']>=key_cutoff_value and not re.match(r'\b(?:NoneThese|NoneAbove|None|NoAnswer|NoneOfThese)\b',cat['name'],flags=re.I) ]
