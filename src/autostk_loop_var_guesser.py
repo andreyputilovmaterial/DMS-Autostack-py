@@ -246,7 +246,7 @@ def find_variables_to_stack(fields_all,config={}):
     #     raise ValueError('Something went wrong, no categories found')
     key_cat_cutoff_index = len(result_category_frequencies) - int(len(result_category_frequencies)*(.69))
     key_cutoff_value = result_category_frequencies[key_cat_cutoff_index]['count'] if len(result_category_frequencies)>0 else len(result_variables)
-    result_category_frequencies = [ cat for cat in result_category_frequencies if cat['count']>=key_cutoff_value ]
+    result_category_frequencies = [ cat for cat in result_category_frequencies if cat['count']>=key_cutoff_value and not re.match(r'\b(?:NoneThese|NoneAbove|None|NoAnswer|NoneOfThese)\b',cat['name'],flags=re.I) ]
     result_category_frequencies = [ cat['name'] for cat in result_category_frequencies ]
     result_categories = result_category_frequencies
     
