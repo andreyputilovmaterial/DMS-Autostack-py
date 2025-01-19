@@ -150,70 +150,71 @@ def patch_generate_scripts_mdata(mdd_data,patch,config):
     def patch_process_update_metadata(chunk):
         action = chunk['action']
         if action=='variable-new':
-            
-            # add code
-            try:
-                mdmparent = find_item(chunk['position'],mdmroot)
-            except MDMItemNotFound as e:
-                # we should not be doing it here
-                # this code belon
-                # # hm, item does not exist
-                # # maybe because we forgot to bring its parent, we did not do it
-                # # let's check that it has parent
-                # # and try to create one
-                # # and try to find this item again
-                # if '.' in chunk['position']:
-                #     mdmitemcandidate = 
-                # else:
-                #     raise e
-                raise e
-            detect_type = None
-            variable_is_plain = False
-            variable_is_categorical = False
-            variable_is_loop = False
-            variable_is_grid = False
-            variable_is_block = False
-            for attr_name, attr_value in chunk['attributes'].items():
-                if attr_name=='MDMRead_type':
-                    variable_is_plain = variable_is_plain or not not re.match(r'^\s*?plain\b',attr_value)
-                    variable_is_categorical = variable_is_categorical or not not re.match(r'^\s*?plain/(?:categorical|multipunch|singlepunch)',attr_value)
-                    variable_is_loop = variable_is_loop or not not re.match(r'^\s*?(?:array|grid|loop)\b',attr_value)
-                    variable_is_block = variable_is_block or not not re.match(r'^\s*?(?:block)\b',attr_value)
-                if attr_name=='MDMRead_is_grid':
-                    variable_is_grid = variable_is_grid or not not re.match(r'^\s*?true\b',attr_value)
-            if variable_is_plain or variable_is_categorical:
-                detect_type = 'plain'
-            elif variable_is_loop:
-                detect_type = 'loop'
-            elif variable_is_block:
-                detect_type = 'block'
-            mdmitem_add = None
-            if detect_type == 'plain':
-                mdmitem_add = mdmroot.CreateVariable(chunk['variable'], chunk['variable'])
-            elif detect_type == 'loop':
-                if variable_is_grid:
-                    mdmitem_add = mdmroot.CreateGrid(chunk['variable'], chunk['variable'])
+            if 'new_metadata' in chunk and chunk['new_metadata']:
+                
+                # add code
+                try:
+                    mdmparent = find_item(chunk['position'],mdmroot)
+                except MDMItemNotFound as e:
+                    # we should not be doing it here
+                    # this code belon
+                    # # hm, item does not exist
+                    # # maybe because we forgot to bring its parent, we did not do it
+                    # # let's check that it has parent
+                    # # and try to create one
+                    # # and try to find this item again
+                    # if '.' in chunk['position']:
+                    #     mdmitemcandidate = 
+                    # else:
+                    #     raise e
+                    raise e
+                detect_type = None
+                variable_is_plain = False
+                variable_is_categorical = False
+                variable_is_loop = False
+                variable_is_grid = False
+                variable_is_block = False
+                for attr_name, attr_value in chunk['attributes'].items():
+                    if attr_name=='type':
+                        variable_is_plain = variable_is_plain or not not re.match(r'^\s*?plain\b',attr_value)
+                        variable_is_categorical = variable_is_categorical or not not re.match(r'^\s*?plain/(?:categorical|multipunch|singlepunch)',attr_value)
+                        variable_is_loop = variable_is_loop or not not re.match(r'^\s*?(?:array|grid|loop)\b',attr_value)
+                        variable_is_block = variable_is_block or not not re.match(r'^\s*?(?:block)\b',attr_value)
+                    if attr_name=='is_grid':
+                        variable_is_grid = variable_is_grid or not not re.match(r'^\s*?true\b',attr_value)
+                if variable_is_plain or variable_is_categorical:
+                    detect_type = 'plain'
+                elif variable_is_loop:
+                    detect_type = 'loop'
+                elif variable_is_block:
+                    detect_type = 'block'
+                mdmitem_add = None
+                if detect_type == 'plain':
+                    mdmitem_add = mdmroot.CreateVariable(chunk['variable'], chunk['variable'])
+                elif detect_type == 'loop':
+                    if variable_is_grid:
+                        mdmitem_add = mdmroot.CreateGrid(chunk['variable'], chunk['variable'])
+                    else:
+                        mdmitem_add = mdmroot.CreateArray(chunk['variable'], chunk['variable'])
+                elif detect_type == 'block':
+                    mdmitem_add = mdmroot.CreateClass(chunk['variable'], chunk['variable'])
+                elif not detect_type:
+                    raise ValueError('Cat\'t create object: unrecognized type')
                 else:
-                    mdmitem_add = mdmroot.CreateArray(chunk['variable'], chunk['variable'])
-            elif detect_type == 'block':
-                mdmitem_add = mdmroot.CreateClass(chunk['variable'], chunk['variable'])
-            elif not detect_type:
-                raise ValueError('Cat\'t create object: unrecognized type')
-            else:
-                raise ValueError('Can\'t handle this type of bject: {s}'.format(s=detect_type))
-            if not detect_type:
-                raise ValueError('Failed to create variable, please check all data in the patch specs')
-            for attr_name, attr_value in chunk['attributes'].items():
-                # if attr_name=='ObjectTypeValue':
-                #     mdmitem_add.ObjectTypeValue = attr_value
-                if attr_name=='DataType':
-                    mdmitem_add.DataType = attr_value
-                elif attr_name=='Label':
-                    mdmitem_add.Label = attr_value if attr_value else ''
-                else:
-                    pass
-            mdmitem_add.Script = chunk['new_metadata']
-            mdmparent.Fields.Add(mdmitem_add)
+                    raise ValueError('Can\'t handle this type of bject: {s}'.format(s=detect_type))
+                if not detect_type:
+                    raise ValueError('Failed to create variable, please check all data in the patch specs')
+                for attr_name, attr_value in chunk['attributes'].items():
+                    # if attr_name=='object_type_value':
+                    #     mdmitem_add.ObjectTypeValue = attr_value
+                    if attr_name=='data_type':
+                        mdmitem_add.DataType = attr_value
+                    elif attr_name=='Label':
+                        mdmitem_add.Label = attr_value if attr_value else ''
+                    else:
+                        pass
+                mdmitem_add.Script = chunk['new_metadata']
+                mdmparent.Fields.Add(mdmitem_add)
 
         else:
             raise ValueError('Patch: action = "{s}": not implemented'.format(s=action))
@@ -255,19 +256,28 @@ def patch_generate_scripts_edits(mdd_data,patch,config):
             # actually, rendering
             # the most interesting part goes here
             def find_regex_span(regex,text,captured_group_num=0,re_flags=re.I|re.DOTALL):
+                # maybe having this fn is not totally right
+                # python offers everything to work with regexs, and I am developing a different hack to work with regexs differently...
+                # anyway, workling like this is easier for me
+                # I am not just doing replacements, that might work, or might not work
+                # I am finding exact position of found sequence and doing string concatenation
                 find_regex_results = re.finditer(regex,text,flags=re_flags)
                 if not find_regex_results:
                     raise ValueError('searching for pattern failed')
                 return [m for m in find_regex_results][0].span(captured_group_num)
             def trim_lines(s):
+                if re.match(r'^\s*$',s):
+                    return ''
                 s = re.sub(r'^(?:\s*?\n)*','',s,flags=re.DOTALL)
                 s = re.sub(r'(?:\s*?\n)*$','',s,flags=re.DOTALL)
                 s = re.sub(r'\n?$','',s,flags=re.DOTALL)
-                return s + '\n'
+                s = s + '\n'
+                return s
             def add_indent(s,indent):
                 s = '\n'+re.sub(r'\n?$','',s) # I am adding a line break at the beginning to make wotking with regexs easier
                 s = re.sub(r'(\n)',lambda m: '{k}{i}'.format(i=indent,k=m[1]),s)
-                return s[1:] # remove line break at the beginning that we added
+                s = s[1:] # remove line break at the beginning that we added
+                return s
 
             code_to_add = self._scripts
             code_to_add = code_to_add.replace('<<STK_VARIABLE_PATH>>',substitutions['variable_stk_path']).replace('<<UNSTK_VARIABLE_PATH>>',substitutions['variable_unstacked_path'])
@@ -284,31 +294,10 @@ def patch_generate_scripts_edits(mdd_data,patch,config):
                 return '{part_begin}{part_subfields}{part_end}'.format(
                     part_begin = trim_lines(code_to_add_part_leading),
                     part_end = trim_lines(code_to_add_part_trailing),
-                    part_subfields = newlines_between_items*CONFIG_NUMLINEBREAKS_AROUND+(newlines_between_items*CONFIG_NUMLINEBREAKS_INBETWEEN).join([ '{subfield_code}'.format(subfield_code=trim_lines(add_indent(subfield.render(self._substitutions_for_childer),indent))) for subfield in self._children ])+newlines_between_items*CONFIG_NUMLINEBREAKS_AROUND,
+                    part_subfields = newlines_between_items*CONFIG_NUMLINEBREAKS_AROUND+(newlines_between_items*CONFIG_NUMLINEBREAKS_INBETWEEN).join([ trim_lines('{subfield_code}'.format(subfield_code=trim_lines(add_indent(subfield.render(self._substitutions_for_childer),indent)))) for subfield in self._children ])+newlines_between_items*CONFIG_NUMLINEBREAKS_AROUND,
                 )
             else:
                 return re.sub(r'(?:^|\n)(\s*?)(\'\s*\{@\})\s*?\n','',code_to_add,flags=re.I|re.DOTALL)
-
-            # position_marker = ' {@}'
-            # marker_nested_code = chunk['new_edits_nestedcode_position'] if 'new_edits_nestedcode_position' in chunk else '\' #mdmautostkap-code-marker: '
-            # # prepare place where it is added
-            # position = len(result)-1
-            # if position_marker in result:
-            #     position = result.index(position_marker)
-            #     position = [m for m in re.finditer(r'[^\S\r\n]*$',result[:position],flags=re.DOTALL)][0].span(0)[0]
-            # result_leadingpart = result[:position]
-            # result_trailingpart = result[position:]
-            # # prepare and format that code_to_add
-            # indents = [m for m in re.finditer(r'^([^\S\r\n]*).*?$',result_trailingpart,flags=re.DOTALL)][0].span(1)
-            # indents = result_trailingpart[indents[0]:indents[1]]
-            # code_to_add = '\n'+re.sub(r'\n$','',code_to_add)
-            # code_to_add = re.sub(r'\n','\n'+indents,code_to_add)
-            # code_to_add = code_to_add.replace('<<PATH>>',prefix)
-            # code_to_add = code_to_add[1:] + '\n'
-            # if marker_nested_code in code_to_add:
-            #     code_to_add = code_to_add.replace(marker_nested_code,marker_nested_code+'({fullpath})'.format(fullpath='{path}{item}'.format(item=chunk['variable'],path='.{p}'.format(p=path) if path else '')))
-            # result = result_leadingpart + code_to_add + result_trailingpart
-            # # result = '{old_code}{linebreak}{added_code}'.format(old_code=result,linebreak='\n',added_code=chunk['new_edits'])
     
     result_chunks_dict = {}
     result_root_chunk_substitions = {'variable_stk_path':'','variable_unstacked_path':''}
@@ -324,17 +313,18 @@ def patch_generate_scripts_edits(mdd_data,patch,config):
         try:
             action = chunk['action']
             if action=='variable-new':
-                variable_position = '{path}{subfield}'.format(subfield=chunk['variable'],path='{path}.'.format(path=chunk['position']) if chunk['position'] else '')
-                parent_position = chunk['position']
-                code_to_add = chunk['new_edits']['code']
-                code_to_add_substitutions = chunk['new_edits']
-                result_chunk = Code(code_to_add,code_to_add_substitutions)
-                if parent_position in result_chunks_dict:
-                    parent = result_chunks_dict[parent_position]
-                    parent.add(result_chunk)
-                    result_chunks_dict[variable_position] = result_chunk
-                else:
-                    raise ValueError('Error generating edits: item not found: {p}'.format(p=parent_position))
+                if 'new_edits' in chunk and chunk['new_edits']:
+                    variable_position = '{path}{subfield}'.format(subfield=chunk['variable'],path='{path}.'.format(path=chunk['position']) if chunk['position'] else '')
+                    parent_position = chunk['position']
+                    code_to_add = chunk['new_edits']['code']
+                    code_to_add_substitutions = chunk['new_edits']
+                    result_chunk = Code(code_to_add,code_to_add_substitutions)
+                    if parent_position in result_chunks_dict:
+                        parent = result_chunks_dict[parent_position]
+                        parent.add(result_chunk)
+                        result_chunks_dict[variable_position] = result_chunk
+                    else:
+                        raise ValueError('Error generating edits: item not found: {p}'.format(p=parent_position))
             else:
                 raise ValueError('Patch: action = "{s}": not implemented'.format(s=action))
         except Exception as e:
