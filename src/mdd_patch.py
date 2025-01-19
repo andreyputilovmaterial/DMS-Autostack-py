@@ -1,4 +1,5 @@
 # import os, time, re, sys
+import code
 import os
 from datetime import datetime, timezone
 # from dateutil import tz
@@ -23,6 +24,13 @@ import win32com.client
 # else:
 #     # included with no parent package
 #     import helper_utility_wrappers
+
+
+
+
+CONFIG_NUMLINEBREAKS_INBETWEEN = 2
+CONFIG_NUMLINEBREAKS_AROUND = 1
+
 
 
 
@@ -165,7 +173,7 @@ def patch_generate_scripts_mdata(mdd_data,patch,config):
             variable_is_loop = False
             variable_is_grid = False
             variable_is_block = False
-            for attr_name, attr_value in chunk['new_attributes'].items():
+            for attr_name, attr_value in chunk['attributes'].items():
                 if attr_name=='MDMRead_type':
                     variable_is_plain = variable_is_plain or not not re.match(r'^\s*?plain\b',attr_value)
                     variable_is_categorical = variable_is_categorical or not not re.match(r'^\s*?plain/(?:categorical|multipunch|singlepunch)',attr_value)
@@ -195,7 +203,7 @@ def patch_generate_scripts_mdata(mdd_data,patch,config):
                 raise ValueError('Can\'t handle this type of bject: {s}'.format(s=detect_type))
             if not detect_type:
                 raise ValueError('Failed to create variable, please check all data in the patch specs')
-            for attr_name, attr_value in chunk['new_attributes'].items():
+            for attr_name, attr_value in chunk['attributes'].items():
                 # if attr_name=='ObjectTypeValue':
                 #     mdmitem_add.ObjectTypeValue = attr_value
                 if attr_name=='DataType':
@@ -231,9 +239,82 @@ def patch_generate_scripts_mdata(mdd_data,patch,config):
     return result
 
 def patch_generate_scripts_edits(mdd_data,patch,config):
+
+    class Code:
+        def __init__(self,scripts,substitutions_for_childer):
+            self._scripts = scripts
+            self._substitutions_for_childer = substitutions_for_childer
+            self._children = []
+        
+        def add(self,nested):
+            self._children.append(nested)
+        
+        # def __str__(self):
+        # we can't use __str__ because we need some parameters passed from parent level
+        def render(self,substitutions):
+            # actually, rendering
+            # the most interesting part goes here
+            def find_regex_span(regex,text,captured_group_num=0,re_flags=re.I|re.DOTALL):
+                find_regex_results = re.finditer(regex,text,flags=re_flags)
+                if not find_regex_results:
+                    raise ValueError('searching for pattern failed')
+                return [m for m in find_regex_results][0].span(captured_group_num)
+            def trim_lines(s):
+                s = re.sub(r'^(?:\s*?\n)*','',s,flags=re.DOTALL)
+                s = re.sub(r'(?:\s*?\n)*$','',s,flags=re.DOTALL)
+                s = re.sub(r'\n?$','',s,flags=re.DOTALL)
+                return s + '\n'
+            def add_indent(s,indent):
+                s = '\n'+re.sub(r'\n?$','',s) # I am adding a line break at the beginning to make wotking with regexs easier
+                s = re.sub(r'(\n)',lambda m: '{k}{i}'.format(i=indent,k=m[1]),s)
+                return s[1:] # remove line break at the beginning that we added
+
+            code_to_add = self._scripts
+            code_to_add = code_to_add.replace('<<STK_VARIABLE_PATH>>',substitutions['variable_stk_path']).replace('<<UNSTK_VARIABLE_PATH>>',substitutions['variable_unstacked_path'])
+            if len(self._children)>0:
+                code_to_add = trim_lines(code_to_add)
+                nested_code_marker_span = find_regex_span(r'(?:^|\n)([^\S\r\n]*?)(\'\s*\{@\})\s*?\n',code_to_add)
+                code_to_add_part_leading = code_to_add[:nested_code_marker_span[0]]
+                code_to_add_part_trailing = code_to_add[nested_code_marker_span[1]:]
+                code_to_add_marker = re.sub(r'^\n','',code_to_add[nested_code_marker_span[0]:nested_code_marker_span[1]])
+                indent_span = find_regex_span(r'^(\s*)\'',code_to_add_marker,captured_group_num=1)
+                indent = code_to_add_marker[indent_span[0]:indent_span[1]]
+                assert not '\n' in indent
+                newlines_between_items = '{s}{n}'.format(s=indent,n='\n')
+                return '{part_begin}{part_subfields}{part_end}'.format(
+                    part_begin = trim_lines(code_to_add_part_leading),
+                    part_end = trim_lines(code_to_add_part_trailing),
+                    part_subfields = newlines_between_items*CONFIG_NUMLINEBREAKS_AROUND+(newlines_between_items*CONFIG_NUMLINEBREAKS_INBETWEEN).join([ '{subfield_code}'.format(subfield_code=trim_lines(add_indent(subfield.render(self._substitutions_for_childer),indent))) for subfield in self._children ])+newlines_between_items*CONFIG_NUMLINEBREAKS_AROUND,
+                )
+            else:
+                return re.sub(r'(?:^|\n)(\s*?)(\'\s*\{@\})\s*?\n','',code_to_add,flags=re.I|re.DOTALL)
+
+            # position_marker = ' {@}'
+            # marker_nested_code = chunk['new_edits_nestedcode_position'] if 'new_edits_nestedcode_position' in chunk else '\' #mdmautostkap-code-marker: '
+            # # prepare place where it is added
+            # position = len(result)-1
+            # if position_marker in result:
+            #     position = result.index(position_marker)
+            #     position = [m for m in re.finditer(r'[^\S\r\n]*$',result[:position],flags=re.DOTALL)][0].span(0)[0]
+            # result_leadingpart = result[:position]
+            # result_trailingpart = result[position:]
+            # # prepare and format that code_to_add
+            # indents = [m for m in re.finditer(r'^([^\S\r\n]*).*?$',result_trailingpart,flags=re.DOTALL)][0].span(1)
+            # indents = result_trailingpart[indents[0]:indents[1]]
+            # code_to_add = '\n'+re.sub(r'\n$','',code_to_add)
+            # code_to_add = re.sub(r'\n','\n'+indents,code_to_add)
+            # code_to_add = code_to_add.replace('<<PATH>>',prefix)
+            # code_to_add = code_to_add[1:] + '\n'
+            # if marker_nested_code in code_to_add:
+            #     code_to_add = code_to_add.replace(marker_nested_code,marker_nested_code+'({fullpath})'.format(fullpath='{path}{item}'.format(item=chunk['variable'],path='.{p}'.format(p=path) if path else '')))
+            # result = result_leadingpart + code_to_add + result_trailingpart
+            # # result = '{old_code}{linebreak}{added_code}'.format(old_code=result,linebreak='\n',added_code=chunk['new_edits'])
     
-    result = '\n{ins_marker}\n'.format(ins_marker='\' #mdmautostkap-code-marker: ()')
-    t = datetime.now()
+    result_chunks_dict = {}
+    result_root_chunk_substitions = {'variable_stk_path':'','variable_unstacked_path':''}
+    result_root_chunk = Code('\n\' {@}\n\n',result_root_chunk_substitions)
+    result_chunks_dict[''] = result_root_chunk
+    # t = datetime.now()
 
     mdd_data = [ field for field in mdd_data if detect_item_type_from_mdddata_fields_report(field['name'])=='variable' ]
     # def check_if_variable_exists(item_name):
@@ -243,29 +324,17 @@ def patch_generate_scripts_edits(mdd_data,patch,config):
         try:
             action = chunk['action']
             if action=='variable-new':
-                path = chunk['position']
-                prefix = chunk['new_edits_nestedcode_address'] if 'new_edits_nestedcode_address' in chunk else ''
-                code_to_add = chunk['new_edits']
-                position_marker = find_code_position_marker(path)
-                marker_nested_code = chunk['new_edits_nestedcode_position'] if 'new_edits_nestedcode_position' in chunk else '\' #mdmautostkap-code-marker: '
-                # prepare place where it is added
-                position = len(result)-1
-                if position_marker in result:
-                    position = result.index(position_marker)
-                    position = [m for m in re.finditer(r'[^\S\r\n]*$',result[:position],flags=re.DOTALL)][0].span(0)[0]
-                result_leadingpart = result[:position]
-                result_trailingpart = result[position:]
-                # prepare and format that code_to_add
-                indents = [m for m in re.finditer(r'^([^\S\r\n]*).*?$',result_trailingpart,flags=re.DOTALL)][0].span(1)
-                indents = result_trailingpart[indents[0]:indents[1]]
-                code_to_add = '\n'+re.sub(r'\n$','',code_to_add)
-                code_to_add = re.sub(r'\n','\n'+indents,code_to_add)
-                code_to_add = code_to_add.replace('<<PATH>>',prefix)
-                code_to_add = code_to_add[1:] + '\n'
-                if marker_nested_code in code_to_add:
-                    code_to_add = code_to_add.replace(marker_nested_code,marker_nested_code+'({fullpath})'.format(fullpath='{path}{item}'.format(item=chunk['variable'],path='.{p}'.format(p=path) if path else '')))
-                result = result_leadingpart + code_to_add + result_trailingpart
-                # result = '{old_code}{linebreak}{added_code}'.format(old_code=result,linebreak='\n',added_code=chunk['new_edits'])
+                variable_position = '{path}{subfield}'.format(subfield=chunk['variable'],path='{path}.'.format(path=chunk['position']) if chunk['position'] else '')
+                parent_position = chunk['position']
+                code_to_add = chunk['new_edits']['code']
+                code_to_add_substitutions = chunk['new_edits']
+                result_chunk = Code(code_to_add,code_to_add_substitutions)
+                if parent_position in result_chunks_dict:
+                    parent = result_chunks_dict[parent_position]
+                    parent.add(result_chunk)
+                    result_chunks_dict[variable_position] = result_chunk
+                else:
+                    raise ValueError('Error generating edits: item not found: {p}'.format(p=parent_position))
             else:
                 raise ValueError('Patch: action = "{s}": not implemented'.format(s=action))
         except Exception as e:
@@ -275,6 +344,9 @@ def patch_generate_scripts_edits(mdd_data,patch,config):
                 pass
             raise e
 
+    # render result_chunks_dict!
+    # result_chunks_dict = '{r}'.format(r=result_chunks_dict)
+    result = '{r}'.format(r=result_root_chunk.render(result_root_chunk_substitions))
     result = normalize_line_breaks(result) # metadata generation from IBM tools prints \r\n in metadata, it causes an extra empty line everywhere
     
     return result
