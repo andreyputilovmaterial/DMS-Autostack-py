@@ -162,19 +162,20 @@ TEMPLATE_402 = """
 
 'StackingLoop: Loop from R-files containing data we want stacked
 '    -For Loops within Loops, "ChildLoop.DayLoop"
-#Define STACKINGLOOP "ChildLoop"
+#define STACKINGLOOP "STKLoop"
 
 'UnstackedVars: Respondent-level variables to include in stacked files
 '    -Access Respondent-level variables with "^.Var"
 '    -Use "^.Var as Var" naming for any variable not currently inside a block
 '    -For Loops within Loops, add a carrot per level: "^.^.Var"
-#Define UNSTACKEDVARS "^.Respondent.ID, ^.Respondent.Serial, ^.DataCollection.Status, ^.DataCollection.StartTime, ^.DataCollection.FinishTime, ^.Comp as Comp, ^.PrelimBanner as PrelimBanner, ^.Banner1 as Banner1, ^.Weight_Completes as Weight_Completes"
+#define UNSTACKEDVARS "^.Respondent.ID, ^.Respondent.Serial, ^.DataCollection.Status, ^.DataCollection.StartTime, ^.DataCollection.FinishTime, ^.Comp as Comp, ^.PrelimBanner as PrelimBanner, ^.Banner1 as Banner1, ^.Weight_Completes as Weight_Completes"
 
 'WhichIterations: Used in the Where clause to determine which iterations to include
 '    -We rarely want to include all iterations with any data at all ("TRUE")
 '    -Usually depends on whether some variable inside the loop is populated ("ChildAge is not null")
 '        -Syntax here is at the loop level: "ChildAge" not "ChildLoop.ChildAge"
-#Define WHICHITERATIONS "ChildAge is not null"
+'#define WHICHITERATIONS "ChildAge is not null"
+#define WHICHITERATIONS "true"
 
 
 InputDatasource(Input)
