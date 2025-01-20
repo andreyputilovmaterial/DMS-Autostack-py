@@ -12,33 +12,29 @@ if __name__ == '__main__':
     # run as a program
     from lib.mdmreadpy import read_mdd
     from lib.mdmreadpy.lib.mdmreportpy import report_create
-    import autostk_loop_var_guesser 
-    import autostk_patch_generate
-    import mdd_patch
-    import autostk_temp_textutility
+    from step02_autostk_loop_var_guesser import guess_vars as autostk_loop_var_guesser
+    from step03_autostk_patch_generate import patch_generate as autostk_patch_generate
+    from step04_mdd_patch import mdd_patch as mdd_patch
+    from step05_text_utility import autostk_textutility as autostk_textutility
 elif '.' in __name__:
     # package
     from .lib.mdmreadpy import read_mdd
     from .lib.mdmreadpy.lib.mdmreportpy import report_create
-    from . import autostk_loop_var_guesser
-    from . import autostk_patch_generate
-    from . import mdd_patch
-    from . import autostk_temp_textutility
+    from .step02_autostk_loop_var_guesser import guess_vars as autostk_loop_var_guesser
+    from .step03_autostk_patch_generate import patch_generate as autostk_patch_generate
+    from .step04_mdd_patch import mdd_patch as mdd_patch
+    from .step05_text_utility import autostk_textutility as autostk_textutility
 else:
     # included with no parent package
     from lib.mdmreadpy import read_mdd
     from lib.mdmreadpy.lib.mdmreportpy import report_create
-    import autostk_loop_var_guesser
-    import autostk_patch_generate
-    import mdd_patch
-    import autostk_temp_textutility
+    from step02_autostk_loop_var_guesser import guess_vars as autostk_loop_var_guesser
+    from step03_autostk_patch_generate import patch_generate as autostk_patch_generate
+    from step04_mdd_patch import mdd_patch as mdd_patch
+    from step05_text_utility import autostk_textutility as autostk_textutility
 
 
 
-
-
-# import json, re
-from datetime import datetime, timezone
 
 
 
@@ -58,7 +54,7 @@ def call_mdd_patch_program():
     return mdd_patch.entry_point({'arglist_strict':False})
 
 def call_autostk_temp_text_program():
-    return autostk_temp_textutility.entry_point({'arglist_strict':False})
+    return autostk_textutility.entry_point({'arglist_strict':False})
 
 
 
