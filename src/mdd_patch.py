@@ -218,6 +218,8 @@ def patch_generate_scripts_mdata(mdd_data,patch,config):
                 mdmitem_add.Script = chunk['new_metadata']
                 mdmparent.Fields.Add(mdmitem_add)
 
+        elif action=='section-insert-lines':
+            pass
         else:
             raise ValueError('Patch: action = "{s}": not implemented'.format(s=action))
 
@@ -331,6 +333,8 @@ def patch_generate_scripts_edits(mdd_data,patch,config):
                         result_chunks_dict[variable_position] = result_chunk
                     else:
                         raise ValueError('Error generating edits: item not found: {p}'.format(p=parent_position))
+            elif action=='section-insert-lines':
+                pass
             else:
                 raise ValueError('Patch: action = "{s}": not implemented'.format(s=action))
         except Exception as e:

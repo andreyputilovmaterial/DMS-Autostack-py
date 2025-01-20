@@ -45,6 +45,7 @@ SET "MDD_FILE_VARIABLES=%MDD_FILE%-stack-var-list-suggested.json"
 SET "MDD_FILE_PATCH=%MDD_FILE%-patch.json"
 SET "MDD_FILE_SYNTAX_MDATA=%MDD_FILE%-stk-mdata.mrs"
 SET "MDD_FILE_SYNTAX_EDITS=%MDD_FILE%-stk-edits.mrs"
+SET "MDD_FILE_SYNTAX_DEFS=%MDD_FILE%-stk-defines.mrs"
 SET "MDD_FILE_RESULT_STEP1=%MDD_FILE%_401_STKPrep.dms"
 SET "MDD_FILE_RESULT_STEP2=%MDD_FILE%_402_STKCreate.dms"
 
@@ -78,12 +79,14 @@ python dist/mdmautostktoolsap_bundle.py --program mdd-patch --action generate-sc
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
 python dist/mdmautostktoolsap_bundle.py --program mdd-patch --action generate-scripts-edits --inp-mdd-scheme "%MDD_FILE_SCHEME%" --patch "%MDD_FILE_PATCH%" --output-filename "%MDD_FILE_SYNTAX_EDITS%"
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
+FOR /F "delims=" %%i IN ('python -c "import sys;import json;f=open(sys.argv[1],'r');data=json.load(f);f.close();data=[d for d in data if d['action']=='section-insert-lines'];f=open(sys.argv[2],'w');json.dump(data,f);f.close();print('processing definitions: done');" "%MDD_FILE_PATCH%" "%MDD_FILE_SYNTAX_DEFS%"') DO ECHO "%%i"
+if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
 
 ECHO -
 ECHO 5. put it all together
-python dist/mdmautostktoolsap_bundle.py --program mdd-autostk-text-utility --action template-401 --mdata "%MDD_FILE_SYNTAX_MDATA%" --edits "%MDD_FILE_SYNTAX_EDITS%" --output-filename "%MDD_FILE_RESULT_STEP1%"
+python dist/mdmautostktoolsap_bundle.py --program mdd-autostk-text-utility --action template-401 --replace-mdata "%MDD_FILE_SYNTAX_MDATA%" --replace-edits "%MDD_FILE_SYNTAX_EDITS%" --replace-defs "%MDD_FILE_SYNTAX_DEFS%" --output-filename "%MDD_FILE_RESULT_STEP1%"
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
-python dist/mdmautostktoolsap_bundle.py --program mdd-autostk-text-utility --action template-402 --output-filename "%MDD_FILE_RESULT_STEP2%"
+python dist/mdmautostktoolsap_bundle.py --program mdd-autostk-text-utility --action template-402 --replace-defs "%MDD_FILE_SYNTAX_DEFS%" --output-filename "%MDD_FILE_RESULT_STEP2%"
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
 
 
@@ -98,6 +101,7 @@ IF %CLEAN_TEMP_MIDDLE_FILES% (
     DEL "%MDD_FILE_PATCH%"
     DEL "%MDD_FILE_SYNTAX_MDATA%"
     DEL "%MDD_FILE_SYNTAX_EDITS%"
+    DEL "%MDD_FILE_SYNTAX_DEFS%"
 )
 
 ECHO -

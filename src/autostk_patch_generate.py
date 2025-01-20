@@ -507,7 +507,8 @@ def check_if_field_name_can_be_used_as_final_name(mdmparent,variable_record,vari
     flag_iim = False
     flag_rpc = False
     potential_item_path, _ = extract_field_name(variable_record['name'])
-    loopname = previously_added[0]['variable'] # the first item added was the loop
+    patch_chunks_with_top_level_items = [ chunk for chunk in previously_added if chunk['action']=='variable-new' and sanitize_item_name(chunk['position'])=='' ]
+    loopname = patch_chunks_with_top_level_items[0]['variable'] # the first item added was the loop
     potential_item_path_stk = trim_dots('{stk_loop}.{path}'.format(stk_loop=loopname,path=potential_item_path))
     for mdmfield in mdmparent.Fields:
         # if that's not field we care about, just skip
@@ -515,7 +516,7 @@ def check_if_field_name_can_be_used_as_final_name(mdmparent,variable_record,vari
             continue
         # first I do straightforward check - check if this item exists at parent level
         potential_full_name = sanitize_item_name( trim_dots('{parent_path}.{item}'.format(parent_path=potential_item_path,item=mdmfield.Name)) )
-        count_previous_entries = len([ chunk for chunk in previously_added if sanitize_item_name(chunk['variable'])==sanitize_item_name(mdmfield.Name) and sanitize_item_name(chunk['position'])==sanitize_item_name(potential_item_path_stk) ])
+        count_previous_entries = len([ chunk for chunk in previously_added if chunk['action']=='variable-new' and sanitize_item_name(chunk['variable'])==sanitize_item_name(mdmfield.Name) and sanitize_item_name(chunk['position'])==sanitize_item_name(potential_item_path_stk) ])
         already_existing = count_previous_entries>0
         result = result and not already_existing
         # and we'll also check unstk
@@ -636,6 +637,12 @@ def process_metadata_outerloop(name,key_categories,mdd_data_categories,mdmdoc,pr
     print_log_processing('top level stacking loop')
     result_metadata = CONFIG_METADATA_LOOP_OUTERSTKLOOP.replace('<<stk_loopname>>',name).replace('<<CATEGORIES>>',categories_scripts)
     result_edits = prepare_syntax_substitutions( CONFIG_CODE_LOOP_OUTERSTKLOOP, stk_variable_name=name, unstk_variable_name='', unstk_variable_fieldname='' )
+    # add defines
+    yield {
+        'action': 'section-insert-lines',
+        'position': '', # top of the script
+        'new_lines': '#define STACKINGLOOP "'+name+'"\n'
+    }
     result_patch = {
         'action': 'variable-new',
         'variable': name,
@@ -684,7 +691,7 @@ def process_metadata_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_un
         'new_edits': result_edits,
     }
     yield result_patch
-    count_entries_stk = len([ chunk for chunk in previously_added if sanitize_item_name(chunk['variable'])==sanitize_item_name(field_name_stk) and sanitize_item_name(chunk['position'])==sanitize_item_name(path_stk) ])
+    count_entries_stk = len([ chunk for chunk in previously_added if chunk['action']=='variable-new' and sanitize_item_name(chunk['variable'])==sanitize_item_name(field_name_stk) and sanitize_item_name(chunk['position'])==sanitize_item_name(path_stk) ])
     exist_stk = count_entries_stk>0
     duplicate_stk = count_entries_stk>1
     exist_unstk = sanitize_item_name(trim_dots(path_unstk+'.'+field_name_unstk)) in variable_records
@@ -712,7 +719,7 @@ def process_metadata_stack_a_categorical(mdmitem_stk,field_name_stk,path_stk,mdm
         'new_edits': result_edits,
     }
     yield result_patch
-    count_entries_stk = len([ chunk for chunk in previously_added if sanitize_item_name(chunk['variable'])==sanitize_item_name(field_name_stk) and sanitize_item_name(chunk['position'])==sanitize_item_name(path_stk) ])
+    count_entries_stk = len([ chunk for chunk in previously_added if chunk['action']=='variable-new' and sanitize_item_name(chunk['variable'])==sanitize_item_name(field_name_stk) and sanitize_item_name(chunk['position'])==sanitize_item_name(path_stk) ])
     exist_stk = count_entries_stk>0
     duplicate_stk = count_entries_stk>1
     exist_unstk = sanitize_item_name(trim_dots(path_unstk+'.'+field_name_unstk)) in variable_records
@@ -730,7 +737,7 @@ def process_metadata_every_parent(path_stk,variable_records,mdmdoc,previously_ad
     # full_path_unstk = ... (skip)
     # parent is probably an outer loop, it exists, we should skip it
     # ok, we'll check that it exists
-    exist_parent = len([ chunk for chunk in previously_added if sanitize_item_name(chunk['variable'])==sanitize_item_name(current_item_stk_name) and sanitize_item_name(chunk['position'])==sanitize_item_name(current_item_stk_path) ])>0
+    exist_parent = len([ chunk for chunk in previously_added if chunk['action']=='variable-new' and sanitize_item_name(chunk['variable'])==sanitize_item_name(current_item_stk_name) and sanitize_item_name(chunk['position'])==sanitize_item_name(current_item_stk_path) ])>0
     assert exist_parent
     parent, rest = extract_parent_name(rest)
     while not (parent==''):
@@ -738,7 +745,7 @@ def process_metadata_every_parent(path_stk,variable_records,mdmdoc,previously_ad
         current_item_stk_path = full_path_stk
         full_path_stk = trim_dots('{prev}.{added}'.format(prev=full_path_stk,added=parent))
         full_path_unstk = trim_dots('{prev}.{added}'.format(prev=full_path_unstk,added=parent))
-        exist_parent = len([ chunk for chunk in previously_added if sanitize_item_name(chunk['variable'])==sanitize_item_name(current_item_stk_name) and sanitize_item_name(chunk['position'])==sanitize_item_name(current_item_stk_path) ])>0
+        exist_parent = len([ chunk for chunk in previously_added if chunk['action']=='variable-new' and sanitize_item_name(chunk['variable'])==sanitize_item_name(current_item_stk_name) and sanitize_item_name(chunk['position'])==sanitize_item_name(current_item_stk_path) ])>0
         if not exist_parent:
             # create it
             variable_record_unstk = variable_records[sanitize_item_name(full_path_unstk)]
@@ -816,9 +823,9 @@ def generate_patch_stk(variable_specs,mdd_data,config):
                 raise ValueError('Input data does not include "scripting" data, please adjust settings that you use to run mdd_read')
             variable_scripts = variable_record['scripting']
 
-            # please note: we can't just provide updated scripts for the variable
-            # it's useless if it's not a top level variable
-            # we should provide updated scripts for all its parents
+            # processed variable is not always a top level variable
+            # maybe we need to process every parent and add metadata for them
+            # see process_metadata_every_parent within process_metadata_stack_a_loop and process_metadata_stack_a_categorical
             
             # and now manipulations with MDD
             mdmdoc = init_mdd_doc_from_script(variable_scripts)
@@ -833,7 +840,6 @@ def generate_patch_stk(variable_specs,mdd_data,config):
                 can_field_name_be_used_as_final_name = check_if_field_name_can_be_used_as_final_name(mdmitem_outer_unstk,variable_record,variable_records,result)
                 for index,mdmitem_loop_field in enumerate(mdmitem_outer_unstk.Fields):
                     if mdmitem_loop_field.Name in fields_include:
-                        # mdmitem_name_backup = mdmitem_loop_field.Name # bad design
 
                         full_name_unstk = '{path}.{field}'.format(path=variable_record_name,field=mdmitem_loop_field.Name)
                         path_unstk, field_name_unstk = extract_field_name(full_name_unstk)

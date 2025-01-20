@@ -162,7 +162,7 @@ TEMPLATE_402 = """
 
 'StackingLoop: Loop from R-files containing data we want stacked
 '    -For Loops within Loops, "ChildLoop.DayLoop"
-#define STACKINGLOOP "STKLoop"
+'#define STACKINGLOOP "STKLoop"
 
 'UnstackedVars: Respondent-level variables to include in stacked files
 '    -Access Respondent-level variables with "^.Var"
@@ -309,6 +309,43 @@ End Event
 
 
 
+
+
+def find_text_span(text,action,position=None):
+    if action=='section-metadata':
+        regex = r'(.*?\n\s*?\bMetadata\b\s*?(?:\([^\n]*?\)\s*?)?(?:\'[^\n]*?)?\s*?\n)((?:.*?\n)?)(\s*?\bEnd\b\s*?\bMetadata\b\s*?(?:\'[^\n]*?)?\s*?\n.*?)'
+        find_regex_results = re.finditer(regex,text,flags=re.I|re.M|re.DOTALL)
+        if not find_regex_results:
+            return None
+        captured_group_num = 2
+        return [m for m in find_regex_results][0].span(captured_group_num)
+    elif action=='section-onnextcase':
+        regex = r'(.*?\n\s*?\bEvent\b\s*?(?:\(\s*?OnNextCase\s*?\)\s*?)(?:\'[^\n]*?)?\s*?\n)((?:.*?\n)?)(\s*?\bEnd\b\s*?\bEvent\b\s*?(?:\'[^\n]*?)?\s*?\n.*?)'
+        find_regex_results = re.finditer(regex,text,flags=re.I|re.M|re.DOTALL)
+        if not find_regex_results:
+            return None
+        captured_group_num = 2
+        return [m for m in find_regex_results][0].span(captured_group_num)
+    elif action=='insert':
+        if position=='':
+            regex = r'^((?:\s*?[^\n]*?\s*?\n)*?\s*?#include\b[^\n]*?\bGlobals\.mrs[^\n]*?\s*?\n(?:\s*?\'*?\s*?#(?:include|define)\b[^\n]*?\s*?\n)*)()(.*)$'
+            find_regex_results = re.finditer(regex,text,flags=re.I|re.M|re.DOTALL)
+            if not find_regex_results:
+                regex = r'^((?:\s*?[^\n]*?\s*?\n)*?(?:\s*?\'*?\s*?#(?:include|define)\b[^\n]*?\s*?\n)*)()(.*)$'
+                find_regex_results = re.finditer(regex,text,flags=re.I|re.M|re.DOTALL)
+            if not find_regex_results:
+                regex = r'^^(\s*\n)()(.*)$'
+                find_regex_results = re.finditer(regex,text,flags=re.I|re.M|re.DOTALL)
+            captured_group_num = 2
+            return [m for m in find_regex_results][0].span(captured_group_num)
+        else:
+            raise ValueError('inserting code at other positions: not implemented (please add regex, it\'s simple')
+
+    else:
+        raise ValueError('patch position not found: {a}'.format(a=action))
+
+
+
 def entry_point(runscript_config={}):
 
     time_start = datetime.now()
@@ -325,13 +362,19 @@ def entry_point(runscript_config={}):
         required=True
     )
     parser.add_argument(
-        '--mdata',
+        '--replace-mdata',
         help='Append metadata part',
         type=str,
         required=False
     )
     parser.add_argument(
-        '--edits',
+        '--replace-edits',
+        help='Append edits part',
+        type=str,
+        required=False
+    )
+    parser.add_argument(
+        '--replace-defs',
         help='Append edits part',
         type=str,
         required=False
@@ -350,14 +393,18 @@ def entry_point(runscript_config={}):
         args = parser.parse_args()
     
     inserted_mdata_fname = None
-    if args.mdata:
-        inserted_mdata_fname = Path(args.mdata)
+    if args.replace_mdata:
+        inserted_mdata_fname = Path(args.replace_mdata)
         inserted_mdata_fname = '{inserted_mdata_fname}'.format(inserted_mdata_fname=inserted_mdata_fname.resolve())
     
     inserted_edits_fname = None
-    if args.edits:
-        inserted_edits_fname = Path(args.edits)
+    if args.replace_edits:
+        inserted_edits_fname = Path(args.replace_edits)
         inserted_edits_fname = '{inserted_edits_fname}'.format(inserted_edits_fname=inserted_edits_fname.resolve())
+    inserted_defs_list_fname = []
+    if args.replace_defs:
+        inserted_defs_list_fname = Path(args.replace_defs)
+        inserted_defs_list_fname = '{inserted_defs_list_fname}'.format(inserted_defs_list_fname=inserted_defs_list_fname.resolve())
 
     config = {}
 
@@ -383,6 +430,9 @@ def entry_point(runscript_config={}):
     if inserted_edits_fname:
         if not(Path(inserted_edits_fname).is_file()):
             raise FileNotFoundError('file not found: {fname}'.format(fname=inserted_edits_fname))
+    if inserted_defs_list_fname:
+        if not(Path(inserted_defs_list_fname).is_file()):
+            raise FileNotFoundError('file not found: {fname}'.format(fname=inserted_defs_list_fname))
 
     inserted_mdata = None
     if inserted_mdata_fname:
@@ -393,6 +443,11 @@ def entry_point(runscript_config={}):
     if inserted_edits_fname:
         with open(inserted_edits_fname,'r',encoding='utf-8') as f_l:
             inserted_edits = f_l.read()
+            f_l.close()
+    inserted_defs_list = None
+    if inserted_defs_list_fname:
+        with open(inserted_defs_list_fname,'r',encoding='utf-8') as f_l:
+            inserted_defs_list = json.load(f_l)
             f_l.close()
     
     print('{script_name}: script started at {dt}'.format(dt=time_start,script_name=script_name))
@@ -405,10 +460,37 @@ def entry_point(runscript_config={}):
         template = TEMPLATE_402
     else:
         raise TypeError('mdd autostk texttools: this action is not implemented yet: "{a}"'.format(a=args.action))
+    print('{script_name}: template: "{t}"'.format(t=action,script_name=script_name))
 
     result = template
-    result = re.sub(r'(.*?\n\s*?\bMetadata\b\s*?(?:\([^\n]*?\)\s*?)?(?:\'[^\n]*?)?\s*?\n)((?:.*?\n)?)(\s*?\bEnd\b\s*?\bMetadata\b\s*?(?:\'[^\n]*?)?\s*?\n.*?)',lambda m: '{begin}{ins}{_end}'.format(begin=m[1],_end=m[3],ins=inserted_mdata if inserted_mdata else m[2]),result,flags=re.I|re.M|re.DOTALL)
-    result = re.sub(r'(.*?\n\s*?\bEvent\b\s*?(?:\(\s*?OnNextCase\s*?\)\s*?)(?:\'[^\n]*?)?\s*?\n)((?:.*?\n)?)(\s*?\bEnd\b\s*?\bEvent\b\s*?(?:\'[^\n]*?)?\s*?\n.*?)',lambda m: '{begin}{ins}{_end}'.format(begin=m[1],_end=m[3],ins=inserted_edits if inserted_edits else m[2]),result,flags=re.I|re.M|re.DOTALL)
+    # insert metadata
+    if inserted_mdata:
+        inserted_piece = inserted_mdata
+        inserted_piece_span = find_text_span(result,'section-metadata')
+        if inserted_piece_span:
+            print('{script_name}: adding Metadata Section'.format(script_name=script_name))
+            result = result[:inserted_piece_span[0]] + inserted_piece + result[inserted_piece_span[1]:]
+        else:
+            print('{script_name}: adding Metadata Section: not found'.format(script_name=script_name))
+    # insert edits
+    if inserted_edits:
+        inserted_piece = inserted_edits
+        inserted_piece_span = find_text_span(result,'section-onnextcase')
+        if inserted_piece_span:
+            print('{script_name}: adding OnNextCase Section'.format(script_name=script_name))
+            result = result[:inserted_piece_span[0]] + inserted_piece + result[inserted_piece_span[1]:]
+        else:
+            print('{script_name}: adding OnNextCase Section: not found'.format(script_name=script_name))
+    # insert defs
+    if inserted_defs_list:
+        for chunk in inserted_defs_list:
+            inserted_piece = chunk['new_lines']
+            inserted_piece_span = find_text_span(result,'insert',position=chunk['position'])
+            if inserted_piece_span:
+                print('{script_name}: adding lines to Section {s}'.format(s=chunk['position'] if chunk['position'] else 'top-level',script_name=script_name))
+                result = result[:inserted_piece_span[0]] + inserted_piece + result[inserted_piece_span[1]:]
+            else:
+                print('{script_name}: adding lines to Section {s}: can\'t add, dest position not found'.format(s=chunk['position'] if chunk['position'] else 'top-level',script_name=script_name))
     
     print('{script_name}: saving as "{fname}"'.format(fname=result_final_fname,script_name=script_name))
     with open(result_final_fname, "w",encoding='utf-8') as outfile:
