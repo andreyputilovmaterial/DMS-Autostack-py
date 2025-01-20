@@ -501,6 +501,7 @@ def check_if_improper_name(name):
 def check_if_field_name_can_be_used_as_final_name(mdmparent,variable_record,variable_records,previously_added):
     result = True
     flag_iim = False
+    flag_rpc = False
     potential_item_path, _ = extract_field_name(variable_record['name'])
     loopname = previously_added[0]['variable'] # the first item added was the loop
     potential_item_path_stk = trim_dots('{stk_loop}.{path}'.format(stk_loop=loopname,path=potential_item_path))
@@ -520,15 +521,21 @@ def check_if_field_name_can_be_used_as_final_name(mdmparent,variable_record,vari
         is_improper_name = re.match(r'^\s*?(?:GV|Num|Rank)\s*?$',mdmfield.Name,flags=re.I|re.DOTALL)
         result = result and not is_improper_name
         iim_flags_count = 0
+        rpc_flags_count = 0
         if 'overlap' in sanitize_item_name(mdmfield.Name):
             iim_flags_count = iim_flags_count + 1
         if ('iim' in sanitize_item_name(mdmparent.Name) or 'qim' in sanitize_item_name(mdmparent.Name)):
             iim_flags_count = iim_flags_count + 1
         if re.match(r'^\s*?(?:Which)\s*?$',mdmfield.Name,flags=re.I):
-            iim_flags_count = iim_flags_count + 1
+            if ('rpc' in sanitize_item_name(mdmparent.Name)):
+                rpc_flags_count = rpc_flags_count + 1
+            else:
+                iim_flags_count = iim_flags_count + 1
         if iim_flags_count>=2:
             flag_iim = True
-    result = result and not flag_iim
+        if rpc_flags_count>=1:
+            flag_rpc = True
+    result = result and not flag_iim and not flag_rpc
     return result
 
 def choose_loop_name(variable_records,name_to_start_with):
