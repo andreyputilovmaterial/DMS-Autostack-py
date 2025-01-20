@@ -96,7 +96,9 @@ CONFIG_CODE_LOOP_UNSTACK_SIMPLE = {
     'code': """
 ' <<STK_VARIABLE_NAME>>
 ' from: <<UNSTK_VARIABLE_NAME>>
-<<STK_VARIABLE_PATH>><<STK_VARIABLE_NAME>> = <<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>[cbrand].<<UNSTK_VARIABLE_FIELDNAME>>
+if containsany( <<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>.DefinedCategories(), cbrand ) then
+    <<STK_VARIABLE_PATH>><<STK_VARIABLE_NAME>> = <<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>[cbrand].<<UNSTK_VARIABLE_FIELDNAME>>
+end if
 ' {@}
 """
 }
@@ -108,7 +110,9 @@ CONFIG_CODE_LOOP_UNSTACK_OBJECT_LOOP_OR_BLOCK = {
 ' <<STK_VARIABLE_NAME>>
 ' from: <<UNSTK_VARIABLE_NAME>>
 ' TODO: generate code iterating over all categories and subfields
-' {@}
+if containsany( <<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>.DefinedCategories(), cbrand ) then
+    ' {@}
+end if
 """
 }
 
