@@ -16,15 +16,15 @@ import win32com.client
 
 
 
-# if __name__ == '__main__':
-#     # run as a program
-#     import helper_utility_wrappers
-# elif '.' in __name__:
-#     # package
-#     from . import helper_utility_wrappers
-# else:
-#     # included with no parent package
-#     import helper_utility_wrappers
+if __name__ == '__main__':
+    # run as a program
+    import utility_performance_monitor
+elif '.' in __name__:
+    # package
+    from . import utility_performance_monitor
+else:
+    # included with no parent package
+    import utility_performance_monitor
 
 
 
@@ -450,272 +450,309 @@ def generate_recursive_onnextcase_code(mdmitem_stk,mdmitem_ref):
 
 
 
+def prepare_variable_records(mdd_data_questions):
+    variable_records = {}
+    # for rec in variable_specs['variables_metadata']:
+    for rec in mdd_data_questions:
+        item_name_clean = sanitize_item_name(rec['name'])
+        # rec = rec['records_ref']
+        variable_records[item_name_clean] = rec
+    return variable_records
 
+def detect_var_type_by_record(variable_record):
+    variable_attributes_captured_with_mdd_read = {}
+    if not 'attributes' in variable_record:
+        raise ValueError('Input data does not include "attributes" data, please adjust settings that you use to run mdd_read')
+    else:
+        assert isinstance(variable_record,dict)
+    variable_attributes_captured_with_mdd_read = {**variable_record['attributes']}
+    if not 'type' in variable_attributes_captured_with_mdd_read:
+        raise ValueError('Input data must follow certain format and must include "type" within its list of attributes generated with mdd_read')
 
-def generate_patch_stk(variable_specs,mdd_data,config):
+    # detect variable type - we are doing it from grabbing data from attributes that were written by mdd_read
+    process_type = None
+    # variable_is_plain = re.match(r'^\s*?plain\b',variable_attributes_captured_with_mdd_read['type'])
+    variable_is_categorical = re.match(r'^\s*?plain/(?:categorical|multipunch|singlepunch)',variable_attributes_captured_with_mdd_read['type'])
+    variable_is_loop = re.match(r'^\s*?(?:array|grid|loop)\b',variable_attributes_captured_with_mdd_read['type'])
+    # variable_is_block = re.match(r'^\s*?(?:block)\b',variable_attributes_captured_with_mdd_read['type'])
+    if variable_is_loop:
+        process_type = 'loop'
+    elif variable_is_categorical:
+        process_type = 'categorical'
+    else:
+        raise ValueError('Can\'t handle this type of variable: {s}'.format(s=variable_attributes_captured_with_mdd_read['type']))
+    return process_type
 
-    def prepare_variable_records(mdd_data_questions):
-        variable_records = {}
-        # for rec in variable_specs['variables_metadata']:
-        for rec in mdd_data_questions:
-            item_name_clean = sanitize_item_name(rec['name'])
-            # rec = rec['records_ref']
-            variable_records[item_name_clean] = rec
-        return variable_records
-    
-    def detect_var_type_by_record(variable_record):
-        variable_attributes_captured_with_mdd_read = {}
-        if not 'attributes' in variable_record:
-            raise ValueError('Input data does not include "attributes" data, please adjust settings that you use to run mdd_read')
-        else:
-            assert isinstance(variable_record,dict)
-        variable_attributes_captured_with_mdd_read = {**variable_record['attributes']}
-        if not 'type' in variable_attributes_captured_with_mdd_read:
-            raise ValueError('Input data must follow certain format and must include "type" within its list of attributes generated with mdd_read')
+def should_exclude_field(mdmfield):
+    field_exclude = False
+    if (mdmfield.DataType if mdmfield.ObjectTypeValue==0 else 4) == 0: # info item, skip, 4 = "object"
+        field_exclude = True
+    if sanitize_item_name(mdmfield.Name)==sanitize_item_name('NavButtonSelect'):
+        field_exclude = True # that stupid field from mf-polar
+    return field_exclude
 
-        # detect variable type - we are doing it from grabbing data from attributes that were written by mdd_read
-        process_type = None
-        # variable_is_plain = re.match(r'^\s*?plain\b',variable_attributes_captured_with_mdd_read['type'])
-        variable_is_categorical = re.match(r'^\s*?plain/(?:categorical|multipunch|singlepunch)',variable_attributes_captured_with_mdd_read['type'])
-        variable_is_loop = re.match(r'^\s*?(?:array|grid|loop)\b',variable_attributes_captured_with_mdd_read['type'])
-        # variable_is_block = re.match(r'^\s*?(?:block)\b',variable_attributes_captured_with_mdd_read['type'])
-        if variable_is_loop:
-            process_type = 'loop'
-        elif variable_is_categorical:
-            process_type = 'categorical'
-        else:
-            raise ValueError('Can\'t handle this type of variable: {s}'.format(s=variable_attributes_captured_with_mdd_read['type']))
-        return process_type
-    
-    def find_fields_included(question):
-        fields_include = []
-        for mdmitem in question:
-            field_exclude = False
-            if (mdmitem.DataType if mdmitem.ObjectTypeValue==0 else 4) == 0: # info item, skip, 4 = "object"
-                field_exclude = True
-            if sanitize_item_name(mdmitem.Name)==sanitize_item_name('NavButtonSelect'):
-                field_exclude = True # that stupid field from mf-polar
-            if not field_exclude:
-                fields_include.append(mdmitem.Name)
-        return fields_include
+def check_if_improper_name(name):
+    is_improper_name = False
+    # and there are less common cases but still happening in disney bes
+    is_improper_name = is_improper_name or not not re.match(r'^\s*?((?:Top|T|Bottom|B))(\d*)((?:B|Box))\s*?$',name,flags=re.I)
+    is_improper_name = is_improper_name or not not re.match(r'^\s*?(?:GV|Rank|Num)\s*?$',name,flags=re.I)
+    return is_improper_name
 
-    def check_if_improper_name(name):
-        is_improper_name = False
-        # and there are less common cases but still happening in disney bes
-        is_improper_name = is_improper_name or not not re.match(r'^\s*?((?:Top|T|Bottom|B))(\d*)((?:B|Box))\s*?$',name,flags=re.I)
-        return is_improper_name
+def check_if_field_name_can_be_used_as_final_name(mdmparent,variable_record,variable_records,previously_added):
+    result = True
+    flag_iim = False
+    potential_item_path, _ = extract_field_name(variable_record['name'])
+    loopname = previously_added[0]['variable'] # the first item added was the loop
+    potential_item_path_stk = trim_dots('{stk_loop}.{path}'.format(stk_loop=loopname,path=potential_item_path))
+    for mdmfield in mdmparent.Fields:
+        # if that's not field we care about, just skip
+        if should_exclude_field(mdmfield):
+            continue
+        # first I do straightforward check - check if this item exists at parent level
+        potential_full_name = sanitize_item_name( trim_dots('{parent_path}.{item}'.format(parent_path=potential_item_path,item=mdmfield.Name)) )
+        count_previous_entries = len([ chunk for chunk in previously_added if sanitize_item_name(chunk['variable'])==sanitize_item_name(mdmfield.Name) and sanitize_item_name(chunk['position'])==sanitize_item_name(potential_item_path_stk) ])
+        already_existing = count_previous_entries>0
+        result = result and not already_existing
+        # and we'll also check unstk
+        already_existing_in_unstk = potential_full_name in variable_records
+        result = result and not already_existing_in_unstk
+        # also we should not create items named just "GV" so I'll check against some popular field names
+        is_improper_name = re.match(r'^\s*?(?:GV|Num|Rank)\s*?$',mdmfield.Name,flags=re.I|re.DOTALL)
+        result = result and not is_improper_name
+        iim_flags_count = 0
+        if 'overlap' in sanitize_item_name(mdmfield.Name):
+            iim_flags_count = iim_flags_count + 1
+        if ('iim' in sanitize_item_name(mdmparent.Name) or 'qim' in sanitize_item_name(mdmparent.Name)):
+            iim_flags_count = iim_flags_count + 1
+        if re.match(r'^\s*?(?:Which)\s*?$',mdmfield.Name,flags=re.I):
+            iim_flags_count = iim_flags_count + 1
+        if iim_flags_count>=2:
+            flag_iim = True
+    result = result and not flag_iim
+    return result
 
-    def check_if_field_name_can_be_used_as_final_name(question,variable_records):
-        can_field_name_be_used_as_final_name = True
-        for mdmitem_unstk in question:
-            if mdmitem_unstk.Name in fields_include:
-                potential_full_name = re.sub(r'^\s*?\.','','{parent_path}.{item}'.format(parent_path=field_path,item=mdmitem_unstk.Name),flags=re.I)
-                # first I do straightforward check - check if this item exists at parent level
-                can_field_name_be_used_as_final_name = not( (not can_field_name_be_used_as_final_name) or sanitize_item_name(potential_full_name) in variable_records )
-                # also we should not create items named just "GV" so I'll check against some popular field names
-                can_field_name_be_used_as_final_name = not ( (not can_field_name_be_used_as_final_name) or sanitize_item_name(mdmitem_unstk.Name) in ['gv','rank','num'] or ('overlap' in sanitize_item_name(mdmitem_unstk.Name) and ('iim' in sanitize_item_name(mdmitem_unstk.Name) or 'qim' in sanitize_item_name(mdmitem_unstk.Name))) )
-        return can_field_name_be_used_as_final_name
+def choose_loop_name(variable_records,name_to_start_with):
+    stk_loopname = name_to_start_with
+    # avoid using name that is already used
+    counter = 2
+    while sanitize_item_name(stk_loopname) in variable_records:
+        stk_loopname = '{base_part}_{knt}'.format(base_part=CONFIG_LOOP_NAME_SUGGESTED,knt=counter)
+        counter = counter + 1
+    return stk_loopname
 
-    def choose_loop_name(variable_records,name_to_start_with):
-        stk_loopname = name_to_start_with
-        # avoid using name that is already used
-        counter = 2
-        while sanitize_item_name(stk_loopname) in variable_records:
-            stk_loopname = '{base_part}_{knt}'.format(base_part=CONFIG_LOOP_NAME_SUGGESTED,knt=counter)
-            counter = counter + 1
-        return stk_loopname
-    
-    def init_mdd_doc_from_script(script):
-        mdmdoc = win32com.client.Dispatch("MDM.Document")
-        mdmdoc.IncludeSystemVariables = False
-        mdmdoc.Contexts.Base = "Analysis"
-        mdmdoc.Contexts.Current = "Analysis"
-        mdmdoc.Script = CONFIG_METADATA_PAGE_TEMPLATE.replace('{@}',script)
-        return mdmdoc
+def init_mdd_doc_from_script(script):
+    mdmdoc = win32com.client.Dispatch("MDM.Document")
+    mdmdoc.IncludeSystemVariables = False
+    mdmdoc.Contexts.Base = "Analysis"
+    mdmdoc.Contexts.Current = "Analysis"
+    mdmdoc.Script = CONFIG_METADATA_PAGE_TEMPLATE.replace('{@}',script)
+    return mdmdoc
 
-    def prepare_category_scripts(key_categories,mdd_data_categories):
-        cat_stk_data = []
-        for cat_stk_name in [ sanitize_item_name(c) for c in key_categories ]:
-            cat_label_frequency_data = {}
-            cat_analysisvalue_frequency_data = {}
-            for cat_mdd in mdd_data_categories:
-                question_name, category_name = extract_category_name(cat_mdd['name'])
-                question_name_clean, category_name_clean = sanitize_item_name(question_name), sanitize_item_name(category_name)
-                category_label = cat_mdd['label']
-                category_properties_dict = cat_mdd['properties']
-                assert not isinstance(category_properties_dict,list)
-                category_analysisvalue = None
-                for prop_name, prop_value in category_properties_dict.items(): # we need to iterate cause property names are case insensitive; it can be "value" or "Value", or (I've never seen, but it can be) "VaLuE"
-                    if sanitize_item_name(prop_name)==sanitize_item_name('value'):
-                        if prop_value:
-                            try:
-                                value = int(prop_value)
-                                category_analysisvalue = value
-                            except:
-                                pass
-                if category_name_clean==cat_stk_name:
-                    cat_label_id = category_label
-                    if cat_label_id in cat_label_frequency_data:
-                        cat_label_frequency_data[cat_label_id]['count'] = cat_label_frequency_data[cat_label_id]['count'] + 1
-                        cat_label_frequency_data[cat_label_id]['questions_used'].append(question_name_clean) # why storing this data, I don't use it
+def prepare_category_scripts(key_categories,mdd_data_categories,mdmdoc):
+    cat_stk_data = []
+    performance_counter = iter(utility_performance_monitor.PerformanceMonitor(config={
+        'total_records': len(key_categories),
+        'report_frequency_records_count': 1,
+        'report_frequency_timeinterval': 14,
+        'report_text_pipein': 'progress processing categories',
+    }))
+    print_log_processing('categories: trying to find the most frequent label and analysis value for every category')
+    for cat_stk_name in [ sanitize_item_name(c) for c in key_categories ]:
+        next(performance_counter)
+        cat_label_frequency_data = {}
+        cat_analysisvalue_frequency_data = {}
+        for cat_mdd in mdd_data_categories:
+            question_name, category_name = extract_category_name(cat_mdd['name'])
+            question_name_clean, category_name_clean = sanitize_item_name(question_name), sanitize_item_name(category_name)
+            category_label = cat_mdd['label']
+            category_properties_dict = cat_mdd['properties']
+            assert not isinstance(category_properties_dict,list)
+            category_analysisvalue = None
+            for prop_name, prop_value in category_properties_dict.items(): # we need to iterate cause property names are case insensitive; it can be "value" or "Value", or (I've never seen, but it can be) "VaLuE"
+                if sanitize_item_name(prop_name)==sanitize_item_name('value'):
+                    if prop_value:
+                        try:
+                            value = int(prop_value)
+                            category_analysisvalue = value
+                        except:
+                            pass
+            if category_name_clean==cat_stk_name:
+                cat_label_id = category_label
+                if cat_label_id in cat_label_frequency_data:
+                    cat_label_frequency_data[cat_label_id]['count'] = cat_label_frequency_data[cat_label_id]['count'] + 1
+                    cat_label_frequency_data[cat_label_id]['questions_used'].append(question_name_clean) # why storing this data, I don't use it
+                else:
+                    cat_label_frequency_data[cat_label_id] = {
+                        'name': category_name,
+                        'questions_used': [question_name_clean], # why storing this data, I don't use it
+                        'label': category_label,
+                        'count': 1
+                    }
+                cat_analysisvalue_id = '{s}'.format(s=category_analysisvalue)
+                if category_analysisvalue and category_analysisvalue>0:
+                    if cat_analysisvalue_id in cat_analysisvalue_frequency_data:
+                        cat_analysisvalue_frequency_data[cat_analysisvalue_id]['count'] = cat_analysisvalue_frequency_data[cat_analysisvalue_id]['count'] + 1
                     else:
-                        cat_label_frequency_data[cat_label_id] = {
-                            'name': category_name,
-                            'questions_used': [question_name_clean], # why storing this data, I don't use it
-                            'label': category_label,
-                            'count': 1
+                        cat_analysisvalue_frequency_data[cat_analysisvalue_id] = {
+                            'count': 1,
+                            'value': category_analysisvalue,
                         }
-                    cat_analysisvalue_id = '{s}'.format(s=category_analysisvalue)
-                    if category_analysisvalue and category_analysisvalue>0:
-                        if cat_analysisvalue_id in cat_analysisvalue_frequency_data:
-                            cat_analysisvalue_frequency_data[cat_analysisvalue_id]['count'] = cat_analysisvalue_frequency_data[cat_analysisvalue_id]['count'] + 1
-                        else:
-                            cat_analysisvalue_frequency_data[cat_analysisvalue_id] = {
-                                'count': 1,
-                                'value': category_analysisvalue,
-                            }
-            cat_label_frequency_data = [ cat for _, cat in cat_label_frequency_data.items() ]
-            if len(cat_label_frequency_data)==0:
-                cat_label_frequency_data = [{
-                    'name': cat_stk_data,
-                    'questions_used': [],
-                    'label': cat_stk_data,
-                    'count': 0
-                }]
-            cat_label_frequency_data = sorted(cat_label_frequency_data,key=lambda c: -c['count'])
-            cat_label_data = cat_label_frequency_data[0]
-            cat_analysisvalue_frequency_data = [ cat for _, cat in cat_analysisvalue_frequency_data.items() ]
-            cat_analysisvalue_frequency_data = sorted(cat_analysisvalue_frequency_data,key=lambda c: -c['count'])
-            cat_analysisvalue_data = cat_analysisvalue_frequency_data[0]['value'] if len(cat_analysisvalue_frequency_data)>0 else None
-            cat_stk_data.append({
-                'cat_id': cat_stk_name,
-                'name': cat_label_data['name'],
-                'label': cat_label_data['label'],
-                'questions_used': cat_label_data['questions_used'], # why storing this data, I don't use it
-                'properties': { 'Value': cat_analysisvalue_data } if cat_analysisvalue_data else {},
-            })
-        return ',\n'.join([ generate_category_metadata(cat['name'],cat['label'],cat['properties'],mdmdoc) for cat in cat_stk_data ])
+        cat_label_frequency_data = [ cat for _, cat in cat_label_frequency_data.items() ]
+        if len(cat_label_frequency_data)==0:
+            cat_label_frequency_data = [{
+                'name': cat_stk_data,
+                'questions_used': [],
+                'label': cat_stk_data,
+                'count': 0
+            }]
+        cat_label_frequency_data = sorted(cat_label_frequency_data,key=lambda c: -c['count'])
+        cat_label_data = cat_label_frequency_data[0]
+        cat_analysisvalue_frequency_data = [ cat for _, cat in cat_analysisvalue_frequency_data.items() ]
+        cat_analysisvalue_frequency_data = sorted(cat_analysisvalue_frequency_data,key=lambda c: -c['count'])
+        cat_analysisvalue_data = cat_analysisvalue_frequency_data[0]['value'] if len(cat_analysisvalue_frequency_data)>0 else None
+        cat_stk_data.append({
+            'cat_id': cat_stk_name,
+            'name': cat_label_data['name'],
+            'label': cat_label_data['label'],
+            'questions_used': cat_label_data['questions_used'], # why storing this data, I don't use it
+            'properties': { 'Value': cat_analysisvalue_data } if cat_analysisvalue_data else {},
+        })
+    return ',\n'.join([ generate_category_metadata(cat['name'],cat['label'],cat['properties'],mdmdoc) for cat in cat_stk_data ])
 
-    def process_metadata_outerloop(name,key_categories,mdd_data_categories,mdmdoc,previously_added):
-        categories_scripts = prepare_category_scripts(key_categories,mdd_data_categories)
-        result_metadata = CONFIG_METADATA_LOOP_OUTERSTKLOOP.replace('<<stk_loopname>>',name).replace('<<CATEGORIES>>',categories_scripts)
-        result_edits = prepare_syntax_substitutions( CONFIG_CODE_LOOP_OUTERSTKLOOP, stk_variable_name=name, unstk_variable_name='', unstk_variable_fieldname='' )
-        result_patch = {
-            'action': 'variable-new',
-            'variable': name,
-            'position': '', # root
-            'debug_data': { 'description': 'top level stacking loop' },
-            'new_metadata': result_metadata,
-            'attributes': { 'object_type_value': 1, 'label': None, 'type': 'array' },
-            'new_edits': result_edits,
-        }
-        yield result_patch
-    
-    def process_metadata_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field_name_unstk,path_unstk,variable_record_unstk_final,variable_records,mdmdoc,previously_added):
-        mdmitem_stk, mdmitem_stk_script = generate_updated_metadata_update_all_in_batch(mdmitem_stk,mdmitem_stk.Script,variable_record_unstk_final,mdmdoc)
-        _, loop_name_unstk = extract_field_name(path_unstk)
+def process_metadata_outerloop(name,key_categories,mdd_data_categories,mdmdoc,previously_added):
+    print_log_processing('categories')
+    categories_scripts = prepare_category_scripts(key_categories,mdd_data_categories,mdmdoc)
+    print_log_processing('top level stacking loop')
+    result_metadata = CONFIG_METADATA_LOOP_OUTERSTKLOOP.replace('<<stk_loopname>>',name).replace('<<CATEGORIES>>',categories_scripts)
+    result_edits = prepare_syntax_substitutions( CONFIG_CODE_LOOP_OUTERSTKLOOP, stk_variable_name=name, unstk_variable_name='', unstk_variable_fieldname='' )
+    result_patch = {
+        'action': 'variable-new',
+        'variable': name,
+        'position': '', # root
+        'debug_data': { 'description': 'top level stacking loop' },
+        'new_metadata': result_metadata,
+        'attributes': { 'object_type_value': 1, 'label': None, 'type': 'array' },
+        'new_edits': result_edits,
+    }
+    yield result_patch
 
-        for result_patch_parent in process_metadata_every_parent(path_stk,variable_records,mdmdoc,previously_added):
-            yield result_patch_parent
+def process_metadata_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field_name_unstk,path_unstk,variable_record,variable_records,mdmdoc,previously_added):
+    mdmitem_stk, mdmitem_stk_script = generate_updated_metadata_update_all_in_batch(mdmitem_stk,mdmitem_stk.Script,variable_record,mdmdoc)
+    _, loop_name_unstk = extract_field_name(path_unstk)
 
-        # done with parent levels, add record for processing the variable that is stacked
-        result_metadata = mdmitem_stk.Script
-        code_source = ''
-        if variable_record_unstk_final['attributes']['object_type_value']==0:
-            # it means it's a regular plain variable
-            # we can use direct assignment
-            code_source = CONFIG_CODE_LOOP_UNSTACK_SIMPLE
-        else:
-            # it's c complex structure
-            # unfortunately, direct assignment "A = B" is not working in dms scripts
-            # we need to iterate over fields
-            # and I can't use a function, i.e. CopyFrom(A,B)
-            # because I can't detect var/loop type in CDSC (case data source component)
-            # anyway, doing euristic analysis is not 100% right, it is not the most performance efficient
-            # and stacking is sometimes slow, it can take 8 hours, or more, in some projects, i.e. Disney+&Hulu tracker
-            # So I have to generate proper code here iterating over all loops and fields
-            code_source = {**CONFIG_CODE_LOOP_UNSTACK_OBJECT_LOOP_OR_BLOCK}
-            code_source_add = generate_recursive_onnextcase_code(mdmitem_stk,mdmitem_unstk)
-            code_source['code'] = re.sub(r'^(.*?)\n\s*?\'\s*?\{@\}[^\n]*?\n(.*?)$',lambda m: '{code_begin}{code_add}{code_end}'.format(code_begin=re.sub(r'\n?$','\n',m[1],flags=re.I|re.DOTALL),code_end=re.sub(r'\n?$','\n',m[2],flags=re.I|re.DOTALL),code_add=re.sub(r'\n?$','\n',code_source_add,flags=re.I|re.DOTALL)),code_source['code'],flags=re.I|re.DOTALL)
-        result_edits = prepare_syntax_substitutions( code_source, stk_variable_name=field_name_stk, unstk_variable_name=loop_name_unstk, unstk_variable_fieldname=field_name_unstk )
-        result_patch = {
-            'action': 'variable-new',
-            'variable': mdmitem_stk.Name,
-            'position': path_stk,
-            'debug_data': { 'source_from': variable_record_name },
-            'new_metadata': result_metadata,
-            'attributes': variable_record_unstk_final['attributes'],
-            'new_edits': result_edits,
-        }
-        yield result_patch
-        exist_stk = len([ chunk for chunk in previously_added if sanitize_item_name(chunk['variable'])==sanitize_item_name(field_name_stk) and sanitize_item_name(chunk['position'])==sanitize_item_name(path_stk) ])>0
-        exist_unstk = sanitize_item_name(trim_dots(path_unstk+'.'+field_name_unstk)) in variable_records
-        assert exist_stk
-        assert exist_unstk
+    for result_patch_parent in process_metadata_every_parent(path_stk,variable_records,mdmdoc,previously_added):
+        yield result_patch_parent
 
-    def process_metadata_stack_a_categorical(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field_name_unstk,path_unstk,variable_record_unstk_final,variable_records,mdmdoc,previously_added):
-        mdmitem_stk, mdmitem_stk_script = generate_updated_metadata_update_all_in_batch(mdmitem_stk,mdmitem_stk.Script,variable_record_unstk_final,mdmdoc)
+    # done with parent levels, add record for processing the variable that is stacked
+    result_metadata = mdmitem_stk.Script
+    code_source = ''
+    if variable_record['attributes']['object_type_value']==0:
+        # it means it's a regular plain variable
+        # we can use direct assignment
+        code_source = CONFIG_CODE_LOOP_UNSTACK_SIMPLE
+    else:
+        # it's c complex structure
+        # unfortunately, direct assignment "A = B" is not working in dms scripts
+        # we need to iterate over fields
+        # and I can't use a function, i.e. CopyFrom(A,B)
+        # because I can't detect var/loop type in CDSC (case data source component)
+        # anyway, doing euristic analysis is not 100% right, it is not the most performance efficient
+        # and stacking is sometimes slow, it can take 8 hours, or more, in some projects, i.e. Disney+&Hulu tracker
+        # So I have to generate proper code here iterating over all loops and fields
+        code_source = {**CONFIG_CODE_LOOP_UNSTACK_OBJECT_LOOP_OR_BLOCK}
+        code_source_add = generate_recursive_onnextcase_code(mdmitem_stk,mdmitem_unstk)
+        code_source['code'] = re.sub(r'^(.*?)\n\s*?\'\s*?\{@\}[^\n]*?\n(.*?)$',lambda m: '{code_begin}{code_add}{code_end}'.format(code_begin=re.sub(r'\n?$','\n',m[1],flags=re.I|re.DOTALL),code_end=re.sub(r'\n?$','\n',m[2],flags=re.I|re.DOTALL),code_add=re.sub(r'\n?$','\n',code_source_add,flags=re.I|re.DOTALL)),code_source['code'],flags=re.I|re.DOTALL)
+    result_edits = prepare_syntax_substitutions( code_source, stk_variable_name=field_name_stk, unstk_variable_name=loop_name_unstk, unstk_variable_fieldname=field_name_unstk )
+    result_patch = {
+        'action': 'variable-new',
+        'variable': mdmitem_stk.Name,
+        'position': path_stk,
+        'debug_data': { 'source_from': variable_record['name'] },
+        'new_metadata': result_metadata,
+        'attributes': variable_record['attributes'],
+        'new_edits': result_edits,
+    }
+    yield result_patch
+    count_entries_stk = len([ chunk for chunk in previously_added if sanitize_item_name(chunk['variable'])==sanitize_item_name(field_name_stk) and sanitize_item_name(chunk['position'])==sanitize_item_name(path_stk) ])
+    exist_stk = count_entries_stk>0
+    duplicate_stk = count_entries_stk>1
+    exist_unstk = sanitize_item_name(trim_dots(path_unstk+'.'+field_name_unstk)) in variable_records
+    assert exist_stk
+    assert not duplicate_stk
+    assert exist_unstk
 
-        for result_patch_parent in process_metadata_every_parent(path_stk,variable_records,mdmdoc,previously_added):
-            yield result_patch_parent
+def process_metadata_stack_a_categorical(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field_name_unstk,path_unstk,variable_record,variable_records,mdmdoc,previously_added):
+    mdmitem_stk, mdmitem_stk_script = generate_updated_metadata_update_all_in_batch(mdmitem_stk,mdmitem_stk.Script,variable_record,mdmdoc)
 
-        # done with parent levels, add record for processing the variable that is stacked
-        result_metadata = mdmitem_stk.Script
-        code_source = CONFIG_CODE_CATEGORICALYN
-        result_edits = prepare_syntax_substitutions( code_source, stk_variable_name=field_name_stk, unstk_variable_name=field_name_unstk, unstk_variable_fieldname=field_name_unstk )
-        result_patch = {
-            'action': 'variable-new',
-            'variable': mdmitem_stk.Name,
-            'position': path_stk,
-            'debug_data': { 'source_from': variable_record_name },
-            'new_metadata': result_metadata,
-            'attributes': variable_record_unstk_final['attributes'],
-            'new_edits': result_edits,
-        }
-        yield result_patch
-        exist_stk = len([ chunk for chunk in previously_added if sanitize_item_name(chunk['variable'])==sanitize_item_name(field_name_stk) and sanitize_item_name(chunk['position'])==sanitize_item_name(path_stk) ])>0
-        exist_unstk = sanitize_item_name(trim_dots(path_unstk+'.'+field_name_unstk)) in variable_records
-        assert exist_stk
-        assert exist_unstk
+    for result_patch_parent in process_metadata_every_parent(path_stk,variable_records,mdmdoc,previously_added):
+        yield result_patch_parent
 
-    def process_metadata_every_parent(path_stk,variable_records,mdmdoc,previously_added):
-        full_path_stk = ''
-        full_path_unstk = ''
-        parent, rest = extract_parent_name(path_stk)
+    # done with parent levels, add record for processing the variable that is stacked
+    result_metadata = mdmitem_stk.Script
+    code_source = CONFIG_CODE_CATEGORICALYN
+    result_edits = prepare_syntax_substitutions( code_source, stk_variable_name=field_name_stk, unstk_variable_name=field_name_unstk, unstk_variable_fieldname=field_name_unstk )
+    result_patch = {
+        'action': 'variable-new',
+        'variable': mdmitem_stk.Name,
+        'position': path_stk,
+        'debug_data': { 'source_from': variable_record['name'] },
+        'new_metadata': result_metadata,
+        'attributes': variable_record['attributes'],
+        'new_edits': result_edits,
+    }
+    yield result_patch
+    count_entries_stk = len([ chunk for chunk in previously_added if sanitize_item_name(chunk['variable'])==sanitize_item_name(field_name_stk) and sanitize_item_name(chunk['position'])==sanitize_item_name(path_stk) ])
+    exist_stk = count_entries_stk>0
+    duplicate_stk = count_entries_stk>1
+    exist_unstk = sanitize_item_name(trim_dots(path_unstk+'.'+field_name_unstk)) in variable_records
+    assert exist_stk
+    assert not duplicate_stk
+    assert exist_unstk
+
+def process_metadata_every_parent(path_stk,variable_records,mdmdoc,previously_added):
+    full_path_stk = ''
+    full_path_unstk = ''
+    parent, rest = extract_parent_name(path_stk)
+    current_item_stk_name = parent
+    current_item_stk_path = full_path_stk
+    full_path_stk = trim_dots('{prev}.{added}'.format(prev=full_path_stk,added=parent))
+    # full_path_unstk = ... (skip)
+    # parent is probably an outer loop, it exists, we should skip it
+    # ok, we'll check that it exists
+    exist_parent = len([ chunk for chunk in previously_added if sanitize_item_name(chunk['variable'])==sanitize_item_name(current_item_stk_name) and sanitize_item_name(chunk['position'])==sanitize_item_name(current_item_stk_path) ])>0
+    assert exist_parent
+    parent, rest = extract_parent_name(rest)
+    while not (parent==''):
         current_item_stk_name = parent
         current_item_stk_path = full_path_stk
         full_path_stk = trim_dots('{prev}.{added}'.format(prev=full_path_stk,added=parent))
-        # full_path_unstk = ... (skip)
-        # parent is probably an outer loop, it exists, we should skip it
-        # ok, we'll check that it exists
+        full_path_unstk = trim_dots('{prev}.{added}'.format(prev=full_path_unstk,added=parent))
         exist_parent = len([ chunk for chunk in previously_added if sanitize_item_name(chunk['variable'])==sanitize_item_name(current_item_stk_name) and sanitize_item_name(chunk['position'])==sanitize_item_name(current_item_stk_path) ])>0
-        assert exist_parent
-        parent, rest = extract_parent_name(rest)
-        while not (parent==''):
-            current_item_stk_name = parent
-            current_item_stk_path = full_path_stk
-            full_path_stk = trim_dots('{prev}.{added}'.format(prev=full_path_stk,added=parent))
-            full_path_unstk = trim_dots('{prev}.{added}'.format(prev=full_path_unstk,added=parent))
-            exist_parent = len([ chunk for chunk in previously_added if sanitize_item_name(chunk['variable'])==sanitize_item_name(current_item_stk_name) and sanitize_item_name(chunk['position'])==sanitize_item_name(current_item_stk_path) ])>0
-            if not exist_parent:
-                # create it
-                variable_record_unstk = variable_records[sanitize_item_name(full_path_unstk)]
-                mdmitem = generate_updated_metadata_clone_excluding_subfields(current_item_stk_name,variable_record_unstk['scripting'],variable_record_unstk['attributes'],mdmdoc)
-                result_metadata = mdmitem.Script
-                code_source = CONFIG_CODE_LOOP
-                result_edits = prepare_syntax_substitutions( code_source, stk_variable_name=current_item_stk_name, unstk_variable_name=current_item_stk_name, unstk_variable_fieldname='' )
-                result_patch = {
-                    'action': 'variable-new',
-                    'variable': current_item_stk_name,
-                    'position': current_item_stk_path,
-                    'debug_data': { 'source_from': full_path_unstk },
-                    'new_metadata': result_metadata,
-                    'attributes': variable_record_unstk['attributes'],
-                    'new_edits': result_edits,
-                }
-                yield result_patch
-                parent, rest = extract_parent_name(rest)
+        if not exist_parent:
+            # create it
+            variable_record_unstk = variable_records[sanitize_item_name(full_path_unstk)]
+            mdmitem = generate_updated_metadata_clone_excluding_subfields(current_item_stk_name,variable_record_unstk['scripting'],variable_record_unstk['attributes'],mdmdoc)
+            result_metadata = mdmitem.Script
+            code_source = CONFIG_CODE_LOOP
+            result_edits = prepare_syntax_substitutions( code_source, stk_variable_name=current_item_stk_name, unstk_variable_name=current_item_stk_name, unstk_variable_fieldname='' )
+            result_patch = {
+                'action': 'variable-new',
+                'variable': current_item_stk_name,
+                'position': current_item_stk_path,
+                'debug_data': { 'source_from': full_path_unstk },
+                'new_metadata': result_metadata,
+                'attributes': variable_record_unstk['attributes'],
+                'new_edits': result_edits,
+            }
+            yield result_patch
+            parent, rest = extract_parent_name(rest)
 
+def print_log_processing(item):
+    print('processing {item}...'.format(item=item))
+
+
+
+def generate_patch_stk(variable_specs,mdd_data,config):
 
 
     # here we have a list of items in the output patch file
@@ -746,9 +783,17 @@ def generate_patch_stk(variable_specs,mdd_data,config):
         result.append(result_patch)
 
     # now process every variable
+    performance_counter = iter(utility_performance_monitor.PerformanceMonitor(config={
+        'total_records': len(variable_specs['variables']),
+        'report_frequency_records_count': 1,
+        'report_frequency_timeinterval': 9,
+        'report_text_pipein': 'progress processing variables',
+    }))
     for variable_id in variable_specs['variables']:
         try:
             
+            print_log_processing(variable_id)
+            next(performance_counter)
             # read variable data from variable_specs
             variable_record = variable_records[sanitize_item_name(variable_id)]
             variable_record_name = variable_record['name']
@@ -772,9 +817,9 @@ def generate_patch_stk(variable_specs,mdd_data,config):
                 
                 mdmitem_outer_unstk = mdmitem_unstk
                 is_a_single_item_within_loop = False
-                fields_include = find_fields_included(mdmitem_outer_unstk.Fields)
+                fields_include = [ mdmfield.Name for mdmfield in mdmitem_outer_unstk.Fields if not should_exclude_field(mdmfield) ]
                 is_a_single_item_within_loop = not ( len(fields_include)>1 )
-                can_field_name_be_used_as_final_name = check_if_field_name_can_be_used_as_final_name(mdmitem_outer_unstk.Fields,variable_records)
+                can_field_name_be_used_as_final_name = check_if_field_name_can_be_used_as_final_name(mdmitem_outer_unstk,variable_record,variable_records,result)
                 for index,mdmitem_loop_field in enumerate(mdmitem_outer_unstk.Fields):
                     if mdmitem_loop_field.Name in fields_include:
                         # mdmitem_name_backup = mdmitem_loop_field.Name # bad design
@@ -795,11 +840,9 @@ def generate_patch_stk(variable_specs,mdd_data,config):
                         if is_a_single_item_within_loop:
                             field_name_stk = mdmitem_outer_unstk.Name
                         elif can_field_name_be_used_as_final_name:
-                            # if index==0 and not is_improper_name:
-                            #     field_name_stk = mdmitem_outer_unstk.Name
-                            # else:
-                            #     field_name_stk = '{part_parent}_{part_field}'.format(part_parent=mdmitem_outer_unstk.Name,part_field=mdmitem_stk.Name)
-                            if not is_improper_name:
+                            if is_improper_name and index==0:
+                                field_name_stk = mdmitem_outer_unstk.Name
+                            elif not is_improper_name:
                                 field_name_stk = mdmitem_stk.Name
                             else:
                                 field_name_stk = '{part_parent}_{part_field}'.format(part_parent=mdmitem_outer_unstk.Name,part_field=mdmitem_stk.Name)

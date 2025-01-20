@@ -123,9 +123,11 @@ def find_item(path,mdmitem):
 
 
 
-
 def patch_generate_scripts_mdata(mdd_data,patch,config):
     
+    def print_log_processing(item):
+        print('processing metadata for {item}...'.format(item=item))
+
     result = ''
     t = datetime.now()
 
@@ -151,7 +153,7 @@ def patch_generate_scripts_mdata(mdd_data,patch,config):
         action = chunk['action']
         if action=='variable-new':
             if 'new_metadata' in chunk and chunk['new_metadata']:
-                
+                print_log_processing('{path}.{field_name}'.format(path=chunk['position'],field_name=chunk['variable']))
                 # add code
                 try:
                     mdmparent = find_item(chunk['position'],mdmroot)
@@ -241,6 +243,9 @@ def patch_generate_scripts_mdata(mdd_data,patch,config):
 
 def patch_generate_scripts_edits(mdd_data,patch,config):
 
+    def print_log_processing(item):
+        print('processing onnextcase scripts for {item}...'.format(item=item))
+
     class Code:
         def __init__(self,scripts,substitutions_for_childer):
             self._scripts = scripts
@@ -314,6 +319,7 @@ def patch_generate_scripts_edits(mdd_data,patch,config):
             action = chunk['action']
             if action=='variable-new':
                 if 'new_edits' in chunk and chunk['new_edits']:
+                    print_log_processing('{path}.{field_name}'.format(path=chunk['position'],field_name=chunk['variable']))
                     variable_position = '{path}{subfield}'.format(subfield=chunk['variable'],path='{path}.'.format(path=chunk['position']) if chunk['position'] else '')
                     parent_position = chunk['position']
                     code_to_add = chunk['new_edits']['code']
