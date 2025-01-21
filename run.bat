@@ -2,8 +2,15 @@
 SETLOCAL enabledelayedexpansion
 
 
-@REM ::insert your files here
-SET "MDD_FILE=..\tests\v0.001\R2401582.mdd"
+@REM :: insert your files here
+SET "MDD_FILE=..\tests\v1.002\R2401582.mdd"
+
+@REM :: the path where outout files are saved
+@REM :: "." means the same directory as this script
+@REM :: empty path ("") means the same directory as your MDD
+@REM :: temporary files are still created at the location of your MDD (it all is configured withing this BAT file - adjust if you need)
+@REM :: but temp files are deleted at the end of script (if you have CLEAN_TEMP_MIDDLE_FILES==1==1)
+SET "OUT_PATH=."
 
 
 
@@ -40,14 +47,20 @@ IF "%CONFIG_PREFER_CATEGORIES%"=="" (
 )
 
 REM :: file names with file schemes in json
+FOR %%F in ("%MDD_FILE%") DO SET "MDD_FILE_LAST_NAME=%%~nxF"
+IF "%OUT_PATH%"=="" (
+    SET "OUT_PATH_AND_NAME=%MDD_FILE%"
+) ELSE (
+    SET "OUT_PATH_AND_NAME=%OUT_PATH%\%MDD_FILE_LAST_NAME%"
+)
 SET "MDD_FILE_SCHEME=%MDD_FILE%.json"
 SET "MDD_FILE_VARIABLES=%MDD_FILE%-stack-var-list-suggested.json"
 SET "MDD_FILE_PATCH=%MDD_FILE%-patch.json"
 SET "MDD_FILE_SYNTAX_MDATA=%MDD_FILE%-stk-mdata.mrs"
 SET "MDD_FILE_SYNTAX_EDITS=%MDD_FILE%-stk-edits.mrs"
 SET "MDD_FILE_SYNTAX_DEFS=%MDD_FILE%-stk-defines.mrs"
-SET "MDD_FILE_RESULT_STEP1=%MDD_FILE%_401_STKPrep.dms"
-SET "MDD_FILE_RESULT_STEP2=%MDD_FILE%_402_STKCreate.dms"
+SET "MDD_FILE_RESULT_STEP1=%OUT_PATH_AND_NAME%_401_STKPrep.dms"
+SET "MDD_FILE_RESULT_STEP2=%OUT_PATH_AND_NAME%_402_STKCreate.dms"
 
 ECHO -
 ECHO 1. read MDD
