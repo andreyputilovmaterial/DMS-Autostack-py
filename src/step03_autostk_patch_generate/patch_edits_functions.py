@@ -97,8 +97,7 @@ def prepare_syntax_substitutions( d, stk_variable_name='', unstk_variable_name='
     assert not '.' in unstk_variable_name
     assert not '.' in unstk_variable_fieldname
     for key in d:
-        # first, copy, to ensure we are not modifying the reference, we are moifying the copy
-        text = '{s}'.format(s=d[key])
+        text = '{s}'.format(s=d[key]) # this line ensures we are working with a copy not reference
         text = text.replace('<<STK_VARIABLE_NAME>>',stk_variable_name)
         text = text.replace('<<UNSTK_VARIABLE_NAME>>',unstk_variable_name)
         text = text.replace('<<UNSTK_VARIABLE_FIELDNAME>>',unstk_variable_fieldname)

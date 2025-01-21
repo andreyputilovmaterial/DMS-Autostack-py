@@ -9,7 +9,6 @@ import win32com.client
 
 
 
-
 CONFIG_ANALYSIS_VALUE_YES = 1
 CONFIG_ANALYSIS_VALUE_NO = 0
 
@@ -79,38 +78,31 @@ def generate_updated_metadata_update_all_in_batch(mdmitem_stk,mdmitem_stk_script
     return mdmitem_stk, mdmitem_stk_script
 
 def generate_updated_metadata_stk_categorical(mdmitem_unstk,mdmitem_script,mdmdoc):
-    # if mdmitem_unstk.Elements.IsReference:
-    #     mdmitem_unstk.Elements.Reference = None
-    #     mdmitem_unstk.Elements.ReferenceName = None
-    # for mdmelem in mdmitem_unstk.Elements:
-    #     mdmitem_unstk.Elements.remove(mdmelem.Name)
-    # mdm_elem_new = mdmdoc.CreateElements("","")
-    # mdmitem_unstk.Elements = mdm_elem_new
     if mdmitem_unstk.Elements.IsReference:
-        # TODO: this is not 100% correct, the regular expression can match the word "categorical" somewhere in label
+        # if elements (categories) are a reference to something - that's a pain, I can't unset it
+        # I tried different approaches
+        # I tried setting mdmitem_unstk.Elements.Reference, .ReferenceName, .IsReference (I can read all of these but not set)
+        # I tried re-creating the Elements with mdmdoc.CreateElements()
+        # I tried to set mdmitem_unstk.Elements.Script = ...
+        # or mdmitem_unstk.Categories.Script = ...
+        # It all fails
+        # I tried to search in help pages, I tried all different keywords, I could not find anything
+        # The only solution that worked for me is replacing the whole item Scripts
+        # That's what I am doing here updating the list of categories with regex
+        # TODO: this is not 100% correct
+        # the regular expression can match the word "categorical" somewhere in label...
+        # I hape it does not happen, because I have a greedy search (.*), and then the word "categorical" should still follow
+        # but I can't be sure
+        # or yes, I know when it certainly fails - when there is a categorical field in HelperFields
+        # hm, I'll try to delete all HelperFields first
         # but I cen't find any better solution
+        for mdmfield in mdmitem_unstk.HelperFields:
+            mdmitem_unstk.HelperFields.remove(mdmfield.Name)
         mdmitem_unstk.Script = re.sub(r'^(.*)(\bcategorical\b)(\s*?(?:\{.*?\})?\s*?(?:\w+\s*?(?:\(.*?\))?)?\s*?;?\s*?)$',lambda m: '{a}{b}{c}'.format(a=m[1],b=m[2],c=' { Yes "Yes" };'),mdmitem_unstk.Script,flags=re.I|re.DOTALL)
-        # for attempt in range(0,2):
-        #     try:
-        #         mdm_elem_new = mdmdoc.CreateElements("","")
-        #         mdmitem_unstk.Elements = mdm_elem_new
-        #     except:
-        #         pass
-        #     try:
-        #         mdmitem_unstk.Elements.ReferenceName = ''
-        #     except:
-        #         pass
-        #     try:
-        #         mdmitem_unstk.Elements.IsReference = False
-        #     except:
-        #         pass
-        #     try:
-        #         mdmitem_unstk.Elements.Remove(0)
-        #     except:
-        #         pass
     for mdmelem in mdmitem_unstk.Elements:
         mdmitem_unstk.Elements.remove(mdmelem.Name)
     # clean out responses for "Other" - I think we don't need it in stacked, or should it be configurable?
+    # actually, should not be configurable, we definitely don't need it in YN variables
     for mdmfield in mdmitem_unstk.HelperFields:
         mdmitem_unstk.HelperFields.remove(mdmfield.Name)
     mdmitem_unstk.MinValue = 1
@@ -142,11 +134,18 @@ def generate_metadata_from_scripts(name,script,attr_dict,mdmroot,isgrid_retry_at
     variable_is_grid = False
     variable_is_block = False
     if 'type' in attr_dict:
+        # in debug, I hate seeing None, I prefer False or True, that's why I have "not not ...""
+        # when I see None, it looks like something is wrong, I forgot to initialize a variable, or used the wrong variable name, or some other issues
         variable_is_plain = variable_is_plain or not not re.match(r'^\s*?plain\b',attr_dict['type'],flags=re.I)
         variable_is_categorical = variable_is_categorical or not not re.match(r'^\s*?plain/(?:categorical|multipunch|singlepunch)',attr_dict['type'],flags=re.I)
         variable_is_loop = variable_is_loop or not not re.match(r'^\s*?(?:array|grid|loop)\b',attr_dict['type'],flags=re.I)
         variable_is_block = variable_is_block or not not re.match(r'^\s*?(?:block)\b',attr_dict['type'],flags=re.I)
     if 'is_grid' in attr_dict:
+        # yeah that's text; that's 'True', not True, or 'False', not 'False'
+        # that's what we get from mdd_read - everything is in text
+        # that tool was initially invented for human-readable outputs, not machine-readable
+        # but I am totally okay with having it as text
+        # that's even easier to handle it in different environments, when you know you don't have to care about format, you are reading text
         variable_is_grid = variable_is_grid or not not re.match(r'^\s*?true\b',attr_dict['is_grid'],flags=re.I)
     if variable_is_plain or variable_is_categorical:
         detect_type = 'plain'
@@ -154,16 +153,16 @@ def generate_metadata_from_scripts(name,script,attr_dict,mdmroot,isgrid_retry_at
         detect_type = 'loop'
     elif variable_is_block:
         detect_type = 'block'
-    mdmitem_ref = None
+    mdmitem = None
     if detect_type == 'plain':
-        mdmitem_ref = mdmroot.CreateVariable(name, name)
+        mdmitem = mdmroot.CreateVariable(name, name)
     elif detect_type == 'loop':
         if variable_is_grid:
-            mdmitem_ref = mdmroot.CreateGrid(name, name)
+            mdmitem = mdmroot.CreateGrid(name, name)
         else:
-            mdmitem_ref = mdmroot.CreateArray(name, name)
+            mdmitem = mdmroot.CreateArray(name, name)
     elif detect_type == 'block':
-        mdmitem_ref = mdmroot.CreateClass(name, name)
+        mdmitem = mdmroot.CreateClass(name, name)
     elif not detect_type:
         raise ValueError('Cat\'t create object: unrecognized type')
     else:
@@ -171,20 +170,25 @@ def generate_metadata_from_scripts(name,script,attr_dict,mdmroot,isgrid_retry_at
     if not detect_type:
         raise ValueError('Failed to create variable, please check all data in the patch specs')
     # if 'object_type_value' in attr_dict:
-    #     mdmitem_ref.ObjectTypeValue = attr_dict['object_type_value']
+    #     # we can't set ObjectTypeValue prop here, and we don't have to
+    #     # this property should already be of proper type
+    #     # if we used the right function to create our object - CreateVariable, CreateGrid, CreateArray...
+    #     mdmitem.ObjectTypeValue = attr_dict['object_type_value']
     if 'data_type' in attr_dict:
-        mdmitem_ref.DataType = attr_dict['data_type']
+        mdmitem.DataType = attr_dict['data_type']
     if 'label' in attr_dict:
-        mdmitem_ref.Label = attr_dict['label']
+        mdmitem.Label = attr_dict['label']
     try:
-        mdmitem_ref.Script = script
+        mdmitem.Script = script
     except Exception as e:
         if variable_is_grid and ( isgrid_retry_attempts is None or isgrid_retry_attempts<3 ):
             # same manipulations as above
+            # maybe it failed because we tried to create an object of IGrid interface and it's not compatible, our object is not a grid
+            # let's try to unset the "grid" flag and try again
             return generate_metadata_from_scripts(name,script,{**attr_dict,'type':'array','is_grid':'false'},mdmroot,isgrid_retry_attempts=isgrid_retry_attempts+1 if isgrid_retry_attempts is not None else 1)
         else:
             raise e
-    return mdmitem_ref
+    return mdmitem
 
 def generate_updated_metadata_clone_excluding_subfields(name,script,attr_dict,mdmroot):
     mdmitem_add = generate_metadata_from_scripts(name,script,attr_dict,mdmroot)
@@ -203,7 +207,78 @@ def generate_category_metadata(name,label,properties,mdmdoc):
         mdmelem.Properties[prop_name] = prop_value
     return mdmelem
 
-
+def sync_labels_from_mddreport(mdmitem,variable_record):
+    def extract_field_name(item_name):
+        m = re.match(r'^\s*((?:\w.*?\.)*)(\w+)\s*$',item_name,flags=re.I)
+        if m:
+            return re.sub(r'\s*\.\s*$','',m[1]),m[2]
+        else:
+            raise ValueError('Can\'t extract field name from "{s}"'.format(s=item_name))
+    def sanitize_item_name(item_name):
+        return re.sub(r'\s*$','',re.sub(r'^\s*','',re.sub(r'\s*([\[\{\]\}\.])\s*',lambda m:'{m}'.format(m=m[1]),item_name,flags=re.I))).lower()
+    def sanitize_field_name(name):
+        _, field_name = extract_field_name(name)
+        return sanitize_item_name(field_name)
+    def iterate_over_categories(mdmitem):
+        for mdmelem in mdmitem.Elements:
+            if mdmelem.IsReference:
+                # shared list - nothing to update
+                pass
+            elif mdmelem.Type==0:
+                # category
+                yield mdmelem
+            elif mdmelem.Type==1:
+                for mdmsubelem in iterate_over_categories(mdmelem):
+                    yield mdmsubelem
+            else:
+                print('WARNING: updating labels: category type not recognized: {s}'.format(s=mdmelem.Name))
+    # 1. update item label
+    try:
+        label_upd = variable_record['label']
+        if label_upd:
+            mdmitem.Label = label_upd
+    except Exception as e:
+        print('Error: updating labels: something happened when synchronizing labels of  {name} ({report_name})'.format(name=mdmitem.Name,report_name=variable_record['name']))
+        print(e)
+        pass
+    # 2. update labels for all categories
+    try:
+        potentially_has_categories_stkver = ( (mdmitem.ObjectTypeValue==0 and mdmitem.DataType==3) or ( mdmitem.ObjectTypeValue==1 or mdmitem.ObjectTypeValue==2 ) )
+        has_categories_unstkver = 'categories' in variable_record and len(variable_record['categories'])>0
+        if not(potentially_has_categories_stkver==has_categories_unstkver):
+            print('WARNING: updating labels: could not compare category list and update labels: {name} ({report_name})'.format(name=mdmitem.Name,report_name=variable_record['name']))
+        if potentially_has_categories_stkver and has_categories_unstkver:
+            for mdmcat in iterate_over_categories(mdmitem):
+                matching = [ cat for cat in variable_record['categories'] if sanitize_item_name(mdmcat.Name)==sanitize_item_name(cat['name']) ]
+                if len(matching)>0:
+                    label_upd = matching[0]['label']
+                    if label_upd:
+                        mdmcat.Label = label_upd
+                else:
+                    print('WARNING: updating labels: no matching category: {name}, variable name: {var_name} ({report_name})'.format(name=mdmcat.Name,var_name=mdmitem.Name,report_name=variable_record['name']))
+    except Exception as e:
+        print('updating labels: Error: something happened when synchronizing category labels of  {name} ({report_name})'.format(name=mdmitem.Name,report_name=variable_record['name']))
+        print(e)
+        pass
+    # 3. update labels for all subfields
+    try:
+        has_subfields_stkver = ( ( mdmitem.ObjectTypeValue==1 or mdmitem.ObjectTypeValue==2 or mdmitem.ObjectTypeValue==3 ) ) and mdmitem.Fields.Count>0
+        has_subfields_unstkver = 'subfields' in variable_record and len(variable_record['subfields'])>0
+        if has_subfields_stkver and not has_subfields_unstkver:
+            print('WARNING: updating labels: could not compare subfields list and update labels: {name} ({report_name})'.format(name=mdmitem.Name,report_name=variable_record['name']))
+        if has_subfields_stkver and has_subfields_unstkver:
+            for mdmfield in mdmitem.Fields:
+                matching = [ item for item in variable_record['subfields'] if sanitize_item_name(mdmfield.Name)==sanitize_field_name(item['name']) ]
+                if len(matching)>0:
+                    subfield_variable_record = matching[0]
+                    sync_labels_from_mddreport(mdmfield,subfield_variable_record)
+                else:
+                    print('WARNING: updating labels: no matching subfield: {name}, variable name: {var_name} ({report_name})'.format(name=mdmfield.Name,var_name=mdmitem.Name,report_name=variable_record['name']))
+    except Exception as e:
+        print('Error: updating labels: something happened when synchronizing subfield of  {name} ({report_name})'.format(name=mdmitem.Name,report_name=variable_record['name']))
+        print(e)
+        pass
+    return mdmitem
 
 
 
