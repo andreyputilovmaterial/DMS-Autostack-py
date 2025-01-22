@@ -145,7 +145,7 @@ def generate_code_check_categories( variable_with_categories_name, mdmvariable_w
 
 
 
-def generate_code_outerstkloop_walkthrough( mdmitem_stk, mdmitem_unstk, stk_variable_name, unstk_variable_name, unstk_variable_fieldname, variable_iterating_over ):
+def generate_code_outerstkloop_walkthrough( mdmitem_stk, mdmitem_unstk, stk_variable_name, unstk_variable_name, unstk_variable_fieldname, mdmvariable_iterating_over ):
     TEMPLATE = {
         'variable_stk_path': 'iter_stk.',
         'variable_unstacked_path': '',
@@ -174,7 +174,7 @@ set iter_stk = null
     result = {**TEMPLATE} # copy, not modify
     return prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name, unstk_variable_fieldname )
 
-def generate_code_loop_unstack_simple( mdmitem_stk, mdmitem_unstk, stk_variable_name, unstk_variable_name, unstk_variable_fieldname, variable_iterating_over ):
+def generate_code_loop_unstack_simple( mdmitem_stk, mdmitem_unstk, stk_variable_name, unstk_variable_name, unstk_variable_fieldname, mdmvariable_iterating_over ):
     TEMPLATE = {
         'variable_stk_path': '<<STK_VARIABLE_PATH>><<STK_VARIABLE_NAME>>.', # not sure we need it, we don't expect that we need to process subfields separately; we need to find some really complicated tests to check it, where we stack at 2 different levels - I can imaging this could happen, let's find some tests and see
         'variable_unstacked_path': '<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>[cbrand].<<UNSTK_VARIABLE_FIELDNAME>>.', # not sure we need it, we don't expect that we need to process subfields separately; we need to find some really complicated tests to check it, where we stack at 2 different levels - I can imaging this could happen, let's find some tests and see
@@ -197,11 +197,11 @@ end if
         'assignment_op': 'operator' if CONFIG_CHECK_CATEGORIES_STYLE in ['OD','OE'] else ( 'containsany' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','CE'] else '???' ),
         'category_list_style': 'explicitcatlist' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','OD'] else ( 'definedcategories' if CONFIG_CHECK_CATEGORIES_STYLE in ['CE','OE'] else '???' ),
     }
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', mdmvariable_with_categories=variable_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', mdmvariable_with_categories=variable_iterating_over, category_check='cbrand', code_style=code_style ) )
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', mdmvariable_with_categories=mdmvariable_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', mdmvariable_with_categories=mdmvariable_iterating_over, category_check='cbrand', code_style=code_style ) )
     return prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name, unstk_variable_fieldname )
 
-def generate_code_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name, unstk_variable_name, unstk_variable_fieldname, variable_iterating_over ):
+def generate_code_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name, unstk_variable_name, unstk_variable_fieldname, mdmvariable_iterating_over ):
     TEMPLATE = {
         'variable_stk_path': '<<STK_VARIABLE_PATH>><<STK_VARIABLE_NAME>>.', # we need it
         'variable_unstacked_path': '<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>[cbrand].', # we need it; don't add variable name - it is already generated with recursive code
@@ -225,12 +225,12 @@ end if
         'assignment_op': 'operator' if CONFIG_CHECK_CATEGORIES_STYLE in ['OD','OE'] else ( 'containsany' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','CE'] else '???' ),
         'category_list_style': 'explicitcatlist' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','OD'] else ( 'definedcategories' if CONFIG_CHECK_CATEGORIES_STYLE in ['CE','OE'] else '???' ),
     }
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', mdmvariable_with_categories=variable_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', mdmvariable_with_categories=variable_iterating_over, category_check='cbrand', code_style=code_style ) )
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', mdmvariable_with_categories=mdmvariable_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', mdmvariable_with_categories=mdmvariable_iterating_over, category_check='cbrand', code_style=code_style ) )
     result['code'] = re.sub(r'^(.*?)\n\s*?\'\s*?\{@\}[^\n]*?\n(.*?)$',lambda m: '{code_begin}{code_add}{code_end}'.format(code_begin=re.sub(r'\n?$','\n',m[1],flags=re.I|re.DOTALL),code_end=re.sub(r'\n?$','\n',m[2],flags=re.I|re.DOTALL),code_add=re.sub(r'\n?$','\n',result_add,flags=re.I|re.DOTALL)),result['code'],flags=re.I|re.DOTALL)
     return prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name, unstk_variable_fieldname )
 
-def generate_code_unstack_categorical_yn( mdmitem_stk, mdmitem_unstk, stk_variable_name, unstk_variable_name, unstk_variable_fieldname, variable_iterating_over ):
+def generate_code_unstack_categorical_yn( mdmitem_stk, mdmitem_unstk, stk_variable_name, unstk_variable_name, unstk_variable_fieldname, mdmvariable_iterating_over ):
     TEMPLATE = {
         'variable_stk_path': '<<STK_VARIABLE_PATH>><<STK_VARIABLE_NAME>>', # we definitely not need it and it will not work, it will break, and that's some good news, we'll see that something is off
         'variable_unstacked_path': '<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', # we definitely not need it and it will not work, it will break, and that's some good news, we'll see that something is off
@@ -253,11 +253,11 @@ end if
         'assignment_op': 'operator' if CONFIG_CHECK_CATEGORIES_STYLE in ['OD','OE'] else ( 'containsany' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','CE'] else '???' ),
         'category_list_style': 'explicitcatlist' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','OD'] else ( 'definedcategories' if CONFIG_CHECK_CATEGORIES_STYLE in ['CE','OE'] else '???' ),
     }
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', mdmvariable_with_categories=variable_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', mdmvariable_with_categories=variable_iterating_over, category_check='cbrand', code_style=code_style ) )
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', mdmvariable_with_categories=mdmvariable_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', mdmvariable_with_categories=mdmvariable_iterating_over, category_check='cbrand', code_style=code_style ) )
     return prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name, unstk_variable_fieldname )
 
-def generate_code_loop_walkthrough( mdmitem_stk, mdmitem_unstk, stk_variable_name, unstk_variable_name, unstk_variable_fieldname, variable_iterating_over ):
+def generate_code_loop_walkthrough( mdmitem_stk, mdmitem_unstk, stk_variable_name, unstk_variable_name, unstk_variable_fieldname, mdmvariable_iterating_over ):
     TEMPLATE = {
         'variable_stk_path': 'iter_stk_<<STK_VARIABLE_NAME>>.', # we certainly need
         'variable_unstacked_path': 'iter_<<UNSTK_VARIABLE_NAME>>.', # we certainly need it

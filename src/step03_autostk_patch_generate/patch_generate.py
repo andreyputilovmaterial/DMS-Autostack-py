@@ -28,7 +28,7 @@ else:
 
 # we can set it to True of False
 # if we set it to True, we'll run additional code
-# that bring all shared lists from the original MDD
+# that brings all shared lists from the original MDD
 # to MDMDocument dynamically created
 # to generate metadata for newly created items in stacked
 # if we set it to True, we can correctly iterate over all categories (elements)
@@ -330,7 +330,7 @@ def process_outerloop(name,key_categories,mdd_data_categories,mdmdoc,previously_
     mdmcategories = prepare_category_list_stk_list(key_categories,mdd_data_categories,mdmdoc)
     print_log_processing('top level stacking loop')
     result_metadata = metadata_functions.generate_scripts_outerstkloop( name, mdmcategories )
-    result_edits = edits_functions.generate_code_outerstkloop_walkthrough( None, None, stk_variable_name=name, unstk_variable_name='', unstk_variable_fieldname='', variable_iterating_over=None )
+    result_edits = edits_functions.generate_code_outerstkloop_walkthrough( None, None, stk_variable_name=name, unstk_variable_name='', unstk_variable_fieldname='', mdmvariable_iterating_over=None )
     # add defines
     assert re.match(r'^\w+$',name,flags=re.I)
     yield {
@@ -365,7 +365,7 @@ def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field
     if variable_record['attributes']['object_type_value']==0:
         # it means it's a regular plain variable
         # we can use direct assignment
-        result_edits = edits_functions.generate_code_loop_unstack_simple( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, unstk_variable_name=loop_name_unstk, unstk_variable_fieldname=field_name_unstk, variable_iterating_over=mdmvariable_loop_unstk )
+        result_edits = edits_functions.generate_code_loop_unstack_simple( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, unstk_variable_name=loop_name_unstk, unstk_variable_fieldname=field_name_unstk, mdmvariable_iterating_over=mdmvariable_loop_unstk )
     else:
         # it's c complex structure
         # unfortunately, direct assignment "A = B" is not working in dms scripts
@@ -375,7 +375,7 @@ def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field
         # anyway, doing euristic analysis is not 100% right, it is not the most performance efficient
         # and stacking is sometimes slow, it can take 8 hours, or more, in some projects, i.e. Disney+&Hulu tracker
         # So I have to generate proper code here iterating over all loops and fields
-        result_edits = edits_functions.generate_code_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, unstk_variable_name=loop_name_unstk, unstk_variable_fieldname=field_name_unstk, variable_iterating_over=mdmvariable_loop_unstk )
+        result_edits = edits_functions.generate_code_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, unstk_variable_name=loop_name_unstk, unstk_variable_fieldname=field_name_unstk, mdmvariable_iterating_over=mdmvariable_loop_unstk )
     result_patch = {
         'action': 'variable-new',
         'variable': mdmitem_stk.Name,
@@ -402,7 +402,7 @@ def process_stack_a_categorical(mdmitem_stk,field_name_stk,path_stk,mdmitem_unst
 
     # done with parent levels, add record for processing the variable that is stacked
     result_metadata = mdmitem_stk.Script
-    result_edits = edits_functions.generate_code_unstack_categorical_yn( mdmitem_stk, None, stk_variable_name=field_name_stk, unstk_variable_name=field_name_unstk, unstk_variable_fieldname=field_name_unstk, variable_iterating_over=mdmitem_unstk )
+    result_edits = edits_functions.generate_code_unstack_categorical_yn( mdmitem_stk, None, stk_variable_name=field_name_stk, unstk_variable_name=field_name_unstk, unstk_variable_fieldname=field_name_unstk, mdmvariable_iterating_over=mdmitem_unstk )
     result_patch = {
         'action': 'variable-new',
         'variable': mdmitem_stk.Name,
@@ -446,7 +446,7 @@ def process_every_parent(path_stk,variable_records,mdmdoc,previously_added):
             mdmitem = metadata_functions.generate_updated_metadata_clone_excluding_subfields(current_item_stk_name,variable_record_unstk['scripting'],variable_record_unstk['attributes'],mdmdoc)
             mdmitem = metadata_functions.sync_labels_from_mddreport(mdmitem,variable_record_unstk)
             result_metadata = mdmitem.Script
-            result_edits = edits_functions.generate_code_loop_walkthrough( mdmitem, None, stk_variable_name=current_item_stk_name, unstk_variable_name=current_item_stk_name, unstk_variable_fieldname='', variable_iterating_over=None )
+            result_edits = edits_functions.generate_code_loop_walkthrough( mdmitem, None, stk_variable_name=current_item_stk_name, unstk_variable_name=current_item_stk_name, unstk_variable_fieldname='', mdmvariable_iterating_over=None )
             result_patch = {
                 'action': 'variable-new',
                 'variable': current_item_stk_name,
