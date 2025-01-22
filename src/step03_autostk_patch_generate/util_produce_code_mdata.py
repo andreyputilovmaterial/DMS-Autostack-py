@@ -32,16 +32,51 @@ fields
 )expand;
 """
 
-CONFIG_METADATA_PAGE_TEMPLATE = 'Metadata(en-US, Question, label)\n{@}\nEnd Metadata'
+CONFIG_METADATA_PAGE_TEMPLATE = 'Metadata(en-US, Analysis, label)\n{@}\nEnd Metadata'
 
 
-
+# we create an MDMDocument from scripts
+# and the scripts are expected to contain the outer "Metadata" clause
 def init_mdd_doc_from_script(script):
     mdmdoc = win32com.client.Dispatch("MDM.Document")
     mdmdoc.IncludeSystemVariables = False
     mdmdoc.Contexts.Base = "Analysis"
     mdmdoc.Contexts.Current = "Analysis"
-    mdmdoc.Script = CONFIG_METADATA_PAGE_TEMPLATE.replace('{@}',script)
+    mdmdoc.Script = script
+    return mdmdoc
+
+# we create an MDMDocument
+# and the scripts we use to define metadata
+# have the "script" syntax inserted
+# so we provide scripts for questions, shared lists, etc... all contents
+# but we don't include the outer "Metadata" clause
+def init_mdd_doc_from_item_script(script):
+    return init_mdd_doc_from_script(CONFIG_METADATA_PAGE_TEMPLATE.replace('{@}',script))
+
+# and this is a helper fn to update MDMDocument
+# and add shared lists from another referenced MDMDocument
+# if we don't do it we can possibly get an error of "Unresolved reference" when iterating over categories (over elements)
+def mdmdoc_sync_types_definitions(mdmdoc,mdmdoc_with_type_references):
+    # I am trying create an shared list
+    # but I have no idea how to do it
+    # there is no method CreateType
+    # it seems a shared list is the same class as Elements
+    # so mdmdoc.CreateElements gives as similar object, similar to a shared list, instance of the right interface, with the right .ObjectTypeValue == 5
+    # but it is still can't be added as a shared list, it is a "namespace", not shared list
+    # I searched all docs in help pages and searched all code samples that are coming with DDL library, there are examples of creating several types of objects but not shared lists
+    # so what I am doing is that I am re-attaching the existing object from referenced mdmdoc to target mdmdoc
+    # but this object is already a part of a tree, so it has Parent and other references to super fields
+    # so I have to detach it from referenced mdm doc, but doing this I am modifying the referenced mdm doc, which is not good
+    # so I have to create a copy of referenced mdm doc to have it clear, to have the provided object unmodifyed and have this fn clean
+    mdmdoc_with_type_references = init_mdd_doc_from_script(mdmdoc_with_type_references.Script)
+    for mdmsl_ref in mdmdoc_with_type_references.Types:
+        # mdmsl = mdmdoc.CreateType(mdmsl_ref.Name, '')
+        # mdmsl = mdmdoc.CreateSharedList(mdmsl_ref.Name, '')
+        # mdmsl = mdmdoc.CreateElements(mdmsl_ref.Name, '')
+        # mdmsl.Script = re.sub( r'^\s*?.*?\bdefine\b\s*?\n?\s*?\{', '{', mdmsl_ref.Script, flags=re.I|re.DOTALL )
+        # mdmdoc.Types.Add(mdmsl)
+        mdmdoc_with_type_references.Types.Remove(mdmsl_ref.Name)
+        mdmdoc.Types.Add(mdmsl_ref)
     return mdmdoc
 
 def generate_updated_metadata_rename(mdmitem_unstk,newname,mdmdoc):
@@ -51,7 +86,7 @@ def generate_updated_metadata_rename(mdmitem_unstk,newname,mdmdoc):
 def generate_updated_metadata_setlabel(mdmitem_unstk,newvalue,mdmdoc):
     def linebreaks_remove(s):
         return re.sub(r'(?:\r\n|\r|\n)',' ',s,flags=re.I)
-    newvalue_clean = linebreaks_remove(newvalue) # we don't need multi-line text in stacked variables; it breaks syntax and it is unnecessary
+    newvalue_clean = linebreaks_remove(newvalue) # we don't need multi-line text in stacked variables; it breaks syntax and it is unnecessary, we also don't need it in tab exports
     mdmitem_unstk.Label = newvalue_clean
     return mdmitem_unstk
 
@@ -227,7 +262,7 @@ def sync_labels_from_mddreport(mdmitem,variable_record):
             elif mdmelem.Type==0: # mdmlib.ElementTypeConstants.mtCategory
                 # category
                 yield mdmelem
-            elif mdmelem.Type==1:
+            elif mdmelem.Type==1: # mdmlib.ElementTypeConstants.mtCategoryList
                 for mdmsubelem in iterate_over_categories(mdmelem):
                     yield mdmsubelem
             else:

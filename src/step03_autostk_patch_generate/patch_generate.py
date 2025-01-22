@@ -25,7 +25,34 @@ else:
 
 
 
-# we'll add "_2",, "_3", and so on, if this name is used
+
+# we can set it to True of False
+# if we set it to True, we'll run additional code
+# that bring all shared lists from the original MDD
+# to MDMDocument dynamically created
+# to generate metadata for newly created items in stacked
+# if we set it to True, we can correctly iterate over all categories (elements)
+# everywhere and not hit "Unresolved reference" error
+# but maybe it is unnecessary
+# we don't have to iterate over categories in shared lists
+# when updating labels - labels are already defined in a shared lists,
+# that's the correct place, we don't have to update anything
+# and it seems we don't have to iterate over elements to produce
+# a list of categories for edits code - just because such iterating is slow,
+# and we already have a list of categories in variable_record from mdd_read
+# so maybe we can turn this switch to off (to False)
+# and make mdm scripts generation faster,
+# because we are re-creating mdmdoc every time we are processing a new item (should we?)
+# and adding shared lists adds significant time to generating results
+CONFIG_BRING_SHAREDLISTS_TO_NEW_MDMDOC_TO_ADDRESS_CAT_UNRESOLVEDREFERENCES = True
+
+
+
+# the name of the loop, will be "STKLoop"
+# we don't guarantee that the loop created will have exactly this name,
+# if this is name is already used,
+# we'll add "_2",, "_3", and so on
+# basically, this name is not super important, it can be whatever not already used, because we'll move from this level in STKCreate and we'll not have this loop in final data
 CONFIG_LOOP_NAME_SUGGESTED = 'STKLoop'
 
 
@@ -448,6 +475,7 @@ def generate_patch_stk(variable_specs,mdd_data,config):
     #     mdd_data = ([sect for sect in mdd_data['sections'] if sect['name']=='fields'])[0]['content']
     # except:
     #     pass
+    mdd_data_root = [ field for field in mdd_data if field['name']=='' ][0]
     mdd_data_questions = [ field for field in mdd_data if detect_item_type_from_mdddata_fields_report(field['name'])=='variable' ]
     mdd_data_categories = [ cat for cat in mdd_data if detect_item_type_from_mdddata_fields_report(cat['name'])=='category' ]
 
@@ -459,7 +487,9 @@ def generate_patch_stk(variable_specs,mdd_data,config):
     stk_loopname = choose_loop_name(variable_records,CONFIG_LOOP_NAME_SUGGESTED)
 
     # prepare mdm item that is used for interaction with all mdm interfaces
-    mdmdoc = metadata_functions.init_mdd_doc_from_script('')
+    mdmdoc = metadata_functions.init_mdd_doc_from_item_script('')
+    if CONFIG_BRING_SHAREDLISTS_TO_NEW_MDMDOC_TO_ADDRESS_CAT_UNRESOLVEDREFERENCES:
+        mdmdoc = metadata_functions.mdmdoc_sync_types_definitions(mdmdoc,metadata_functions.init_mdd_doc_from_script(mdd_data_root['scripting']))
 
     # go!
 
@@ -495,7 +525,9 @@ def generate_patch_stk(variable_specs,mdd_data,config):
             # see process_every_parent within process_stack_a_loop and process_stack_a_categorical
             
             # and now manipulations with MDD
-            mdmdoc = metadata_functions.init_mdd_doc_from_script(variable_scripts)
+            mdmdoc = metadata_functions.init_mdd_doc_from_item_script(variable_scripts)
+            if CONFIG_BRING_SHAREDLISTS_TO_NEW_MDMDOC_TO_ADDRESS_CAT_UNRESOLVEDREFERENCES:
+                mdmdoc = metadata_functions.mdmdoc_sync_types_definitions(mdmdoc,metadata_functions.init_mdd_doc_from_script(mdd_data_root['scripting']))
             mdmitem_unstk = mdmdoc.Fields[field_name] # that's top-level!
             
             if variable_type=='loop':

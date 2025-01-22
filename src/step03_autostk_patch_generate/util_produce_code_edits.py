@@ -1,11 +1,14 @@
 import re
 
 
-
-# CONFIG_CHECK_CATEGORIES_STYLE = 'containsany_fn_vs_definedcategories'
-# CONFIG_CHECK_CATEGORIES_STYLE = 'containsany_op_vs_definedcategories'
-# CONFIG_CHECK_CATEGORIES_STYLE = 'containsany_fn_vs_explicitcatlist'
-CONFIG_CHECK_CATEGORIES_STYLE = 'containsany_op_vs_explicitcatlist'
+# this is for benchmarking and testing
+# first letter is "C" (for "ContainsAny") or "O" (for "operator", which is "=*")
+# second letter is "D" (For ".DefinedCategories()") or "E" (for "explicit category list")
+# I will try different syntax styles and benchmark speed
+# CONFIG_CHECK_CATEGORIES_STYLE = 'CD'
+CONFIG_CHECK_CATEGORIES_STYLE = 'OD'
+# CONFIG_CHECK_CATEGORIES_STYLE = 'CE'
+# CONFIG_CHECK_CATEGORIES_STYLE = 'OE'
 
 
 
@@ -84,12 +87,16 @@ def generate_recursive_onnextcase_code(mdmitem_stk,mdmitem_ref):
 
 
 
-def generate_code_check_categories( variable_with_categories_name, mdmvariable_with_categories, category_check ):
+def generate_code_check_categories( variable_with_categories_name, mdmvariable_with_categories, category_check, code_style={} ):
     def compile_category_list(mdmvar):
         def iterate_over_categories(mdmitem):
             for mdmelem in mdmitem.Elements:
                 if mdmelem.IsReference:
-                    # shared list - nothing to update
+                    # shared list - iterate over elements as usual
+                    # if we did not bring the shared list to this mdmdoc, we'll get an error "Unable to resolve reference"
+                    # we'll skip, just add a comment as a placeholder instead of real category names
+                    # as the syntax would be ",'!...!'," (comma-comment-comma), it will not work
+                    # so survey engineer will see an error and update to actual category list
                     try:
                         for mdmsubelem in iterate_over_categories(mdmelem.Reference):
                             yield mdmsubelem
@@ -106,36 +113,34 @@ def generate_code_check_categories( variable_with_categories_name, mdmvariable_w
                 elif mdmelem.Type==0: # mdmlib.ElementTypeConstants.mtCategory
                     # category
                     yield mdmelem
-                elif mdmelem.Type==1:
+                elif mdmelem.Type==1: # mdmlib.ElementTypeConstants.mtCategoryList
                     for mdmsubelem in iterate_over_categories(mdmelem):
                         yield mdmsubelem
                 else:
                     print('WARNING: updating labels: category type not recognized: {s}'.format(s=mdmelem.Name))
         return ','.join([mdmcat.Name for mdmcat in iterate_over_categories(mdmvar) ])
-    if CONFIG_CHECK_CATEGORIES_STYLE == 'containsany_fn_vs_definedcategories':
-        result = 'containsany( <<CATCHECK>>, <<VARNAME>>.DefinedCategories() )'
-        result = result.replace('<<CATCHECK>>',category_check)
-        result = result.replace('<<VARNAME>>',variable_with_categories_name)
-        return result
-    elif CONFIG_CHECK_CATEGORIES_STYLE == 'containsany_op_vs_definedcategories':
-        result = '<<CATCHECK>> =* <<VARNAME>>.DefinedCategories()'
-        result = result.replace('<<CATCHECK>>',category_check)
-        result = result.replace('<<VARNAME>>',variable_with_categories_name)
-        return result
-    elif CONFIG_CHECK_CATEGORIES_STYLE == 'containsany_fn_vs_explicitcatlist':
-        result = 'containsany( <<CATCHECK>>, {<<CATLIST>>} )'
-        result = result.replace('<<CATLIST>>',compile_category_list(mdmvariable_with_categories))
-        result = result.replace('<<CATCHECK>>',category_check)
-        result = result.replace('<<VARNAME>>',variable_with_categories_name)
-        return result
-    elif CONFIG_CHECK_CATEGORIES_STYLE == 'containsany_op_vs_explicitcatlist':
+    code_style_assignment_op = 'operator'
+    if 'assignment_op' in code_style:
+        code_style_assignment_op = code_style['assignment_op']
+    code_style_category_list_style = 'definedcategories'
+    if 'category_list_style' in code_style:
+        code_style_category_list_style = code_style['category_list_style']
+    result = None
+    if code_style_assignment_op=='operator':
         result = '<<CATCHECK>> =* {<<CATLIST>>}'
-        result = result.replace('<<CATLIST>>',compile_category_list(mdmvariable_with_categories))
-        result = result.replace('<<CATCHECK>>',category_check)
-        result = result.replace('<<VARNAME>>',variable_with_categories_name)
-        return result
+    elif code_style_assignment_op=='containsany':
+        result = 'containsany( <<CATCHECK>>, {<<CATLIST>>} )'
     else:
-        raise ValueError('bad config option: CONFIG_CHECK_CATEGORIES_STYLE ({s})'.format(s=CONFIG_CHECK_CATEGORIES_STYLE))
+        raise ValueError('generate_code_check_categories: unrecognized code_style_assignment_op: {s}'.format(s=code_style_assignment_op))
+    if code_style_category_list_style=='definedcategories':
+        result = result.replace('{<<CATLIST>>}','<<VARNAME>>.DefinedCategories()')
+    elif code_style_category_list_style=='explicitcatlist':
+        result = result.replace('<<CATLIST>>',compile_category_list(mdmvariable_with_categories))
+    else:
+        raise ValueError('generate_code_check_categories: unrecognized code_style_category_list_style: {s}'.format(s=code_style_category_list_style))
+    result = result.replace('<<CATCHECK>>',category_check)
+    result = result.replace('<<VARNAME>>',variable_with_categories_name)
+    return result
 
 
 
@@ -176,6 +181,7 @@ def generate_code_loop_unstack_simple( mdmitem_stk, mdmitem_unstk, stk_variable_
         'code': """
 ' <<STK_VARIABLE_NAME>>
 ' from: <<UNSTK_VARIABLE_NAME>>
+'if <<CATEGORIESCHECKEXAMPLE>> then
 if <<CATEGORIESCHECK>> then
     <<STK_VARIABLE_PATH>><<STK_VARIABLE_NAME>> = <<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>[cbrand].<<UNSTK_VARIABLE_FIELDNAME>>
 end if
@@ -183,7 +189,16 @@ end if
 """
     }
     result = {**TEMPLATE} # copy, not modify
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', mdmvariable_with_categories=variable_iterating_over, category_check='cbrand' ) )
+    code_style = {
+        'assignment_op': 'operator' if CONFIG_CHECK_CATEGORIES_STYLE in ['OD','OE'] else ( 'containsany' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','CE'] else '???' ),
+        'category_list_style': 'definedcategories' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','OD'] else ( 'explicitcatlist' if CONFIG_CHECK_CATEGORIES_STYLE in ['CE','OE'] else '???' ),
+    }
+    code_style_compare = {
+        'assignment_op': 'operator' if CONFIG_CHECK_CATEGORIES_STYLE in ['OD','OE'] else ( 'containsany' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','CE'] else '???' ),
+        'category_list_style': 'explicitcatlist' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','OD'] else ( 'definedcategories' if CONFIG_CHECK_CATEGORIES_STYLE in ['CE','OE'] else '???' ),
+    }
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', mdmvariable_with_categories=variable_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', mdmvariable_with_categories=variable_iterating_over, category_check='cbrand', code_style=code_style ) )
     return prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name, unstk_variable_fieldname )
 
 def generate_code_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name, unstk_variable_name, unstk_variable_fieldname, variable_iterating_over ):
@@ -194,6 +209,7 @@ def generate_code_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_varia
 ' <<STK_VARIABLE_NAME>>
 ' from: <<UNSTK_VARIABLE_NAME>>
 ' TODO: generate code iterating over all categories and subfields
+'if <<CATEGORIESCHECKEXAMPLE>> then
 if <<CATEGORIESCHECK>> then
     ' {@}
 end if
@@ -201,7 +217,16 @@ end if
     }
     result = {**TEMPLATE} # copy, not modify
     result_add = generate_recursive_onnextcase_code(mdmitem_stk,mdmitem_unstk)
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', mdmvariable_with_categories=variable_iterating_over, category_check='cbrand' ) )
+    code_style = {
+        'assignment_op': 'operator' if CONFIG_CHECK_CATEGORIES_STYLE in ['OD','OE'] else ( 'containsany' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','CE'] else '???' ),
+        'category_list_style': 'definedcategories' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','OD'] else ( 'explicitcatlist' if CONFIG_CHECK_CATEGORIES_STYLE in ['CE','OE'] else '???' ),
+    }
+    code_style_compare = {
+        'assignment_op': 'operator' if CONFIG_CHECK_CATEGORIES_STYLE in ['OD','OE'] else ( 'containsany' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','CE'] else '???' ),
+        'category_list_style': 'explicitcatlist' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','OD'] else ( 'definedcategories' if CONFIG_CHECK_CATEGORIES_STYLE in ['CE','OE'] else '???' ),
+    }
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', mdmvariable_with_categories=variable_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', mdmvariable_with_categories=variable_iterating_over, category_check='cbrand', code_style=code_style ) )
     result['code'] = re.sub(r'^(.*?)\n\s*?\'\s*?\{@\}[^\n]*?\n(.*?)$',lambda m: '{code_begin}{code_add}{code_end}'.format(code_begin=re.sub(r'\n?$','\n',m[1],flags=re.I|re.DOTALL),code_end=re.sub(r'\n?$','\n',m[2],flags=re.I|re.DOTALL),code_add=re.sub(r'\n?$','\n',result_add,flags=re.I|re.DOTALL)),result['code'],flags=re.I|re.DOTALL)
     return prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name, unstk_variable_fieldname )
 
@@ -212,6 +237,7 @@ def generate_code_unstack_categorical_yn( mdmitem_stk, mdmitem_unstk, stk_variab
         'code': """
 ' <<STK_VARIABLE_NAME>>
 ' from: <<UNSTK_VARIABLE_NAME>>
+'if <<CATEGORIESCHECKEXAMPLE>> then
 if <<CATEGORIESCHECK>> then
     <<STK_VARIABLE_PATH>><<STK_VARIABLE_NAME>> = iif( <<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>> is null, null, iif( <<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>=*cbrand, {Yes}, {No} ) )
 end if
@@ -219,7 +245,16 @@ end if
 """
     }
     result = {**TEMPLATE} # copy, not modify
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', mdmvariable_with_categories=variable_iterating_over, category_check='cbrand' ) )
+    code_style = {
+        'assignment_op': 'operator' if CONFIG_CHECK_CATEGORIES_STYLE in ['OD','OE'] else ( 'containsany' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','CE'] else '???' ),
+        'category_list_style': 'definedcategories' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','OD'] else ( 'explicitcatlist' if CONFIG_CHECK_CATEGORIES_STYLE in ['CE','OE'] else '???' ),
+    }
+    code_style_compare = {
+        'assignment_op': 'operator' if CONFIG_CHECK_CATEGORIES_STYLE in ['OD','OE'] else ( 'containsany' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','CE'] else '???' ),
+        'category_list_style': 'explicitcatlist' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','OD'] else ( 'definedcategories' if CONFIG_CHECK_CATEGORIES_STYLE in ['CE','OE'] else '???' ),
+    }
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', mdmvariable_with_categories=variable_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', mdmvariable_with_categories=variable_iterating_over, category_check='cbrand', code_style=code_style ) )
     return prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name, unstk_variable_fieldname )
 
 def generate_code_loop_walkthrough( mdmitem_stk, mdmitem_unstk, stk_variable_name, unstk_variable_name, unstk_variable_fieldname, variable_iterating_over ):
