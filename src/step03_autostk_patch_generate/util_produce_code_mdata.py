@@ -44,18 +44,18 @@ def init_mdd_doc_from_script(script):
     mdmdoc.Script = CONFIG_METADATA_PAGE_TEMPLATE.replace('{@}',script)
     return mdmdoc
 
-def generate_updated_metadata_rename(mdmitem_unstk,mdmitem_script,newname,mdmdoc):
+def generate_updated_metadata_rename(mdmitem_unstk,newname,mdmdoc):
     mdmitem_unstk.Name = newname
-    return mdmitem_unstk, mdmitem_unstk.Script
+    return mdmitem_unstk
 
-def generate_updated_metadata_setlabel(mdmitem_unstk,mdmitem_script,newvalue,mdmdoc):
+def generate_updated_metadata_setlabel(mdmitem_unstk,newvalue,mdmdoc):
     def linebreaks_remove(s):
         return re.sub(r'(?:\r\n|\r|\n)',' ',s,flags=re.I)
     newvalue_clean = linebreaks_remove(newvalue) # we don't need multi-line text in stacked variables; it breaks syntax and it is unnecessary
     mdmitem_unstk.Label = newvalue_clean
-    return mdmitem_unstk, mdmitem_unstk.Script
+    return mdmitem_unstk
 
-def generate_updated_metadata_updateproperties(mdmitem_unstk,mdmitem_script,newvalues_dict,mdmdoc):
+def generate_updated_metadata_updateproperties(mdmitem_unstk,newvalues_dict,mdmdoc):
     assert not isinstance(newvalues_dict,list)
     for prop_name, prop_value in newvalues_dict.items():
         def sanitize_prop_name(name):
@@ -68,16 +68,16 @@ def generate_updated_metadata_updateproperties(mdmitem_unstk,mdmitem_script,newv
         if propname_clean:
             # if not propname_clean in 
             mdmitem_unstk.Properties[propname_clean] = prop_value
-    return mdmitem_unstk, mdmitem_unstk.Script
+    return mdmitem_unstk
 
-def generate_updated_metadata_update_all_in_batch(mdmitem_stk,mdmitem_stk_script,updated_metadata_data,mdmdoc):
+def generate_updated_metadata_update_all_in_batch(mdmitem_stk,updated_metadata_data,mdmdoc):
     if 'label' in updated_metadata_data and updated_metadata_data['label']:
-        mdmitem_stk, mdmitem_stk_script = generate_updated_metadata_setlabel(mdmitem_stk,mdmitem_stk_script,updated_metadata_data['label'],mdmdoc)
+        mdmitem_stk = generate_updated_metadata_setlabel(mdmitem_stk,updated_metadata_data['label'],mdmdoc)
     if 'properties' in updated_metadata_data and updated_metadata_data['properties']:
-        mdmitem_stk, mdmitem_stk_script = generate_updated_metadata_updateproperties(mdmitem_stk,mdmitem_stk_script,updated_metadata_data['properties'],mdmdoc)
-    return mdmitem_stk, mdmitem_stk_script
+        mdmitem_stk = generate_updated_metadata_updateproperties(mdmitem_stk,updated_metadata_data['properties'],mdmdoc)
+    return mdmitem_stk
 
-def generate_updated_metadata_stk_categorical(mdmitem_unstk,mdmitem_script,mdmdoc):
+def generate_updated_metadata_stk_categorical(mdmitem_unstk,mdmdoc):
     if mdmitem_unstk.Elements.IsReference:
         # if elements (categories) are a reference to something - that's a pain, I can't unset it
         # I tried different approaches
@@ -123,7 +123,7 @@ def generate_updated_metadata_stk_categorical(mdmitem_unstk,mdmitem_script,mdmdo
     if CONFIG_ANALYSIS_VALUE_NO is not None:
         mdmelem.Properties['Value'] = CONFIG_ANALYSIS_VALUE_NO
     mdmitem_unstk.Elements.Add(mdmelem)
-    return mdmitem_unstk, mdmitem_unstk.Script
+    return mdmitem_unstk
 
 def generate_metadata_from_scripts(name,script,attr_dict,mdmroot,isgrid_retry_attempts=None):
     assert not isinstance(attr_dict,list)
@@ -224,7 +224,7 @@ def sync_labels_from_mddreport(mdmitem,variable_record):
             if mdmelem.IsReference:
                 # shared list - nothing to update
                 pass
-            elif mdmelem.Type==0:
+            elif mdmelem.Type==0: # mdmlib.ElementTypeConstants.mtCategory
                 # category
                 yield mdmelem
             elif mdmelem.Type==1:

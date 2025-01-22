@@ -10,18 +10,18 @@ import json
 if __name__ == '__main__':
     # run as a program
     import utility_performance_monitor
-    import patch_mdata_functions as metadata_functions
-    import patch_edits_functions as edits_functions
+    import util_produce_code_mdata as metadata_functions
+    import util_produce_code_edits as edits_functions
 elif '.' in __name__:
     # package
     from . import utility_performance_monitor
-    from . import patch_mdata_functions as metadata_functions
-    from . import patch_edits_functions as edits_functions
+    from . import util_produce_code_mdata as metadata_functions
+    from . import util_produce_code_edits as edits_functions
 else:
     # included with no parent package
     import utility_performance_monitor
-    import patch_mdata_functions as metadata_functions
-    import patch_edits_functions as edits_functions
+    import util_produce_code_mdata as metadata_functions
+    import util_produce_code_edits as edits_functions
 
 
 
@@ -303,7 +303,7 @@ def process_outerloop(name,key_categories,mdd_data_categories,mdmdoc,previously_
     mdmcategories = prepare_category_list_stk_list(key_categories,mdd_data_categories,mdmdoc)
     print_log_processing('top level stacking loop')
     result_metadata = metadata_functions.generate_scripts_outerstkloop( name, mdmcategories )
-    result_edits = edits_functions.generate_code_outerstkloop_walkthrough( None, None, stk_variable_name=name, unstk_variable_name='', unstk_variable_fieldname='' )
+    result_edits = edits_functions.generate_code_outerstkloop_walkthrough( None, None, stk_variable_name=name, unstk_variable_name='', unstk_variable_fieldname='', variable_iterating_over=None )
     # add defines
     assert re.match(r'^\w+$',name,flags=re.I)
     yield {
@@ -324,8 +324,10 @@ def process_outerloop(name,key_categories,mdd_data_categories,mdmdoc,previously_
 
 def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field_name_unstk,path_unstk,variable_record,variable_records,mdmdoc,previously_added):
     mdmitem_stk = metadata_functions.sync_labels_from_mddreport(mdmitem_stk,variable_record)
-    mdmitem_stk, _ = metadata_functions.generate_updated_metadata_update_all_in_batch(mdmitem_stk,mdmitem_stk.Script,variable_record,mdmdoc)
+    mdmitem_stk = metadata_functions.generate_updated_metadata_update_all_in_batch(mdmitem_stk,variable_record,mdmdoc)
     _, loop_name_unstk = extract_field_name(path_unstk)
+    loop_variable_unstk = variable_records[sanitize_item_name(path_unstk)]
+    mdmvariable_loop_unstk = metadata_functions.generate_metadata_from_scripts(field_name_unstk,loop_variable_unstk['scripting'],loop_variable_unstk['attributes'],mdmdoc)
 
     for result_patch_parent in process_every_parent(path_stk,variable_records,mdmdoc,previously_added):
         yield result_patch_parent
@@ -336,7 +338,7 @@ def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field
     if variable_record['attributes']['object_type_value']==0:
         # it means it's a regular plain variable
         # we can use direct assignment
-        result_edits = edits_functions.generate_code_loop_unstack_simple(  mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, unstk_variable_name=loop_name_unstk, unstk_variable_fieldname=field_name_unstk )
+        result_edits = edits_functions.generate_code_loop_unstack_simple( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, unstk_variable_name=loop_name_unstk, unstk_variable_fieldname=field_name_unstk, variable_iterating_over=mdmvariable_loop_unstk )
     else:
         # it's c complex structure
         # unfortunately, direct assignment "A = B" is not working in dms scripts
@@ -346,7 +348,7 @@ def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field
         # anyway, doing euristic analysis is not 100% right, it is not the most performance efficient
         # and stacking is sometimes slow, it can take 8 hours, or more, in some projects, i.e. Disney+&Hulu tracker
         # So I have to generate proper code here iterating over all loops and fields
-        result_edits = edits_functions.generate_code_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, unstk_variable_name=loop_name_unstk, unstk_variable_fieldname=field_name_unstk )
+        result_edits = edits_functions.generate_code_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, unstk_variable_name=loop_name_unstk, unstk_variable_fieldname=field_name_unstk, variable_iterating_over=mdmvariable_loop_unstk )
     result_patch = {
         'action': 'variable-new',
         'variable': mdmitem_stk.Name,
@@ -366,14 +368,14 @@ def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field
     assert exist_unstk
 
 def process_stack_a_categorical(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field_name_unstk,path_unstk,variable_record,variable_records,mdmdoc,previously_added):
-    mdmitem_stk, _ = metadata_functions.generate_updated_metadata_update_all_in_batch(mdmitem_stk,mdmitem_stk.Script,variable_record,mdmdoc)
+    mdmitem_stk = metadata_functions.generate_updated_metadata_update_all_in_batch(mdmitem_stk,variable_record,mdmdoc)
 
     for result_patch_parent in process_every_parent(path_stk,variable_records,mdmdoc,previously_added):
         yield result_patch_parent
 
     # done with parent levels, add record for processing the variable that is stacked
     result_metadata = mdmitem_stk.Script
-    result_edits = edits_functions.generate_code_unstack_categorical_yn( mdmitem_stk, None, stk_variable_name=field_name_stk, unstk_variable_name=field_name_unstk, unstk_variable_fieldname=field_name_unstk )
+    result_edits = edits_functions.generate_code_unstack_categorical_yn( mdmitem_stk, None, stk_variable_name=field_name_stk, unstk_variable_name=field_name_unstk, unstk_variable_fieldname=field_name_unstk, variable_iterating_over=mdmitem_unstk )
     result_patch = {
         'action': 'variable-new',
         'variable': mdmitem_stk.Name,
@@ -417,7 +419,7 @@ def process_every_parent(path_stk,variable_records,mdmdoc,previously_added):
             mdmitem = metadata_functions.generate_updated_metadata_clone_excluding_subfields(current_item_stk_name,variable_record_unstk['scripting'],variable_record_unstk['attributes'],mdmdoc)
             mdmitem = metadata_functions.sync_labels_from_mddreport(mdmitem,variable_record_unstk)
             result_metadata = mdmitem.Script
-            result_edits = edits_functions.generate_code_loop_walkthrough( mdmitem, None, stk_variable_name=current_item_stk_name, unstk_variable_name=current_item_stk_name, unstk_variable_fieldname='' )
+            result_edits = edits_functions.generate_code_loop_walkthrough( mdmitem, None, stk_variable_name=current_item_stk_name, unstk_variable_name=current_item_stk_name, unstk_variable_fieldname='', variable_iterating_over=None )
             result_patch = {
                 'action': 'variable-new',
                 'variable': current_item_stk_name,
@@ -531,7 +533,7 @@ def generate_patch_stk(variable_specs,mdd_data,config):
                         else:
                             field_name_stk = '{part_parent}_{part_field}'.format(part_parent=mdmitem_outer_unstk.Name,part_field=mdmitem_stk.Name)
                         if not (field_name_stk == mdmitem_stk.Name):
-                            mdmitem_stk, mdmitem_stk_script = metadata_functions.generate_updated_metadata_rename(mdmitem_stk,mdmitem_stk_script,field_name_stk,mdmdoc)
+                            mdmitem_stk = metadata_functions.generate_updated_metadata_rename(mdmitem_stk,field_name_stk,mdmdoc)
                         
                         # combine from variable_record_unstk and variable_record
                         # somehow labels disappear when switching from Question context to Analysis context
@@ -563,13 +565,14 @@ def generate_patch_stk(variable_specs,mdd_data,config):
 
             elif variable_type=='categorical':
                 
-                mdmitem_stk, mdmitem_stk_script = metadata_functions.generate_updated_metadata_stk_categorical(mdmitem_unstk,variable_scripts,mdmdoc)
-                mdmitem_stk, mdmitem_stk_script = metadata_functions.generate_updated_metadata_rename(mdmitem_unstk,variable_scripts,'{part_old}{part_added}'.format(part_old=mdmitem_unstk.Name,part_added='_YN'),mdmdoc)
-
                 full_name_unstk = variable_record['name']
                 path_unstk, field_name_unstk = extract_field_name(full_name_unstk)
                 full_name_stk = trim_dots('{stk_loopname}.{path_nested}'.format(stk_loopname=stk_loopname,path_nested=trim_dots('{path}.{field_name}'.format(path=path_unstk,field_name=field_name_unstk))))
                 path_stk, field_name_stk = extract_field_name(full_name_stk)
+
+                mdmitem_stk = metadata_functions.generate_metadata_from_scripts(field_name_unstk,variable_record['scripting'],variable_record['attributes'],mdmdoc)
+                mdmitem_stk = metadata_functions.generate_updated_metadata_stk_categorical(mdmitem_stk,mdmdoc)
+                mdmitem_stk = metadata_functions.generate_updated_metadata_rename(mdmitem_stk,'{part_old}{part_added}'.format(part_old=mdmitem_unstk.Name,part_added='_YN'),mdmdoc)
 
                 # combine labels, properties, attributes
                 # somehow labels disappear when switching from Question context to Analysis context
