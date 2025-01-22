@@ -219,6 +219,29 @@ def prepare_category_list_stk_list(key_categories,mdd_data_categories,mdmdoc):
     # in most project, even big trackers, this still takes several seconds
     # so this can be optimized
     # but I am not willing to spend time on this now
+    for cat_mdd in mdd_data_categories:
+        category_properties_dict = cat_mdd['properties']
+        assert not isinstance(category_properties_dict,list)
+        category_analysisvalue = None
+        for prop_name, prop_value in category_properties_dict.items(): # we need to iterate cause property names are case insensitive; it can be "value" or "Value", or (I've never seen, but it can be) "VaLuE"
+            if sanitize_item_name(prop_name)==sanitize_item_name('value'):
+                def sanitize_value(value):
+                    if not value:
+                        return None
+                    try:
+                        value_float = float(value)
+                        value_int = int(round(value_float))
+                        is_whole = abs(value_float-value_int)<0.01
+                        if is_whole:
+                            return value_int
+                        else:
+                            return None
+                    except:
+                        return None
+                analysis_value = sanitize_value(prop_value)
+                if analysis_value:
+                    category_analysisvalue = analysis_value
+        cat_mdd['property_analysis_value'] = category_analysisvalue
     for cat_stk_name in [ sanitize_item_name(c) for c in key_categories ]:
         next(performance_counter)
         cat_label_frequency_data = {}
@@ -227,17 +250,7 @@ def prepare_category_list_stk_list(key_categories,mdd_data_categories,mdmdoc):
             question_name, category_name = extract_category_name(cat_mdd['name'])
             question_name_clean, category_name_clean = sanitize_item_name(question_name), sanitize_item_name(category_name)
             category_label = cat_mdd['label']
-            category_properties_dict = cat_mdd['properties']
-            assert not isinstance(category_properties_dict,list)
-            category_analysisvalue = None
-            for prop_name, prop_value in category_properties_dict.items(): # we need to iterate cause property names are case insensitive; it can be "value" or "Value", or (I've never seen, but it can be) "VaLuE"
-                if sanitize_item_name(prop_name)==sanitize_item_name('value'):
-                    if prop_value:
-                        try:
-                            value = int(prop_value)
-                            category_analysisvalue = value
-                        except:
-                            pass
+            category_analysisvalue = cat_mdd['property_analysis_value']
             if category_name_clean==cat_stk_name:
                 cat_label_id = category_label
                 if cat_label_id in cat_label_frequency_data:
