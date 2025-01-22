@@ -2,13 +2,20 @@ import re
 
 
 # this is for benchmarking and testing
-# first letter is "C" (for "ContainsAny") or "O" (for "operator", which is "=*")
-# second letter is "D" (For ".DefinedCategories()") or "E" (for "explicit category list")
+# first letter is
+#  - "C" (for "ContainsAny"), or
+#  - "O" (for "operator", which is "=*")
+# second letter is
+#  - "D" (For ".DefinedCategories()"), or
+#  - "E" (for "explicit category list"), or
+#  - "G" (for "global" dmgr job variables - we'll read category list in OnJobStart event, and then use this list)
 # I will try different syntax styles and benchmark speed
 # CONFIG_CHECK_CATEGORIES_STYLE = 'CD'
 CONFIG_CHECK_CATEGORIES_STYLE = 'OD'
 # CONFIG_CHECK_CATEGORIES_STYLE = 'CE'
 # CONFIG_CHECK_CATEGORIES_STYLE = 'OE'
+# CONFIG_CHECK_CATEGORIES_STYLE = 'CG'
+# CONFIG_CHECK_CATEGORIES_STYLE = 'OG'
 
 
 
@@ -125,6 +132,9 @@ def generate_code_check_categories( variable_with_categories_name, categories_it
         result = result.replace('{<<CATLIST>>}','<<VARNAME>>.DefinedCategories()')
     elif code_style_category_list_style=='explicitcatlist':
         result = result.replace('<<CATLIST>>',','.join(['{s}'.format(s=Cat(cat)) for cat in categories_iterating_over]))
+    elif code_style_category_list_style=='globaldmgrvar':
+        result = result.replace('{<<CATLIST>>}','dmgrGlobal.DefinedCategories_<<VARNAME>>')
+        raise ValueError('generating code with dmgrGlobal - not implemented yet (it is more complicated than it\'s looking)')
     else:
         raise ValueError('generate_code_check_categories: unrecognized code_style_category_list_style: {s}'.format(s=code_style_category_list_style))
     result = result.replace('<<CATCHECK>>',category_check)
@@ -178,13 +188,15 @@ end if
 """
     }
     result = {**TEMPLATE} # copy, not modify
+    code_style_configletter1 = CONFIG_CHECK_CATEGORIES_STYLE[0] if len(CONFIG_CHECK_CATEGORIES_STYLE)>=2 else None
+    code_style_configletter2 = CONFIG_CHECK_CATEGORIES_STYLE[1] if len(CONFIG_CHECK_CATEGORIES_STYLE)>=2 else None
     code_style = {
-        'assignment_op': 'operator' if CONFIG_CHECK_CATEGORIES_STYLE in ['OD','OE'] else ( 'containsany' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','CE'] else '???' ),
-        'category_list_style': 'definedcategories' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','OD'] else ( 'explicitcatlist' if CONFIG_CHECK_CATEGORIES_STYLE in ['CE','OE'] else '???' ),
+        'assignment_op': 'operator' if code_style_configletter1=='O' else ( 'containsany' if code_style_configletter1=='C' else '???' ),
+        'category_list_style': 'definedcategories' if code_style_configletter2=='D' else ( 'explicitcatlist' if code_style_configletter2=='E' else ( 'globaldmgrvar' if code_style_configletter2=='G' else '???' ) ),
     }
     code_style_compare = {
-        'assignment_op': 'operator' if CONFIG_CHECK_CATEGORIES_STYLE in ['OD','OE'] else ( 'containsany' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','CE'] else '???' ),
-        'category_list_style': 'explicitcatlist' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','OD'] else ( 'definedcategories' if CONFIG_CHECK_CATEGORIES_STYLE in ['CE','OE'] else '???' ),
+        **code_style,
+        'category_list_style': 'definedcategories' if code_style['category_list_style']=='explicitcatlist' else 'explicitcatlist',
     }
     result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
     result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style ) )
@@ -206,13 +218,15 @@ end if
     }
     result = {**TEMPLATE} # copy, not modify
     result_add = generate_recursive_onnextcase_code(mdmitem_stk,mdmitem_unstk)
+    code_style_configletter1 = CONFIG_CHECK_CATEGORIES_STYLE[0] if len(CONFIG_CHECK_CATEGORIES_STYLE)>=2 else None
+    code_style_configletter2 = CONFIG_CHECK_CATEGORIES_STYLE[1] if len(CONFIG_CHECK_CATEGORIES_STYLE)>=2 else None
     code_style = {
-        'assignment_op': 'operator' if CONFIG_CHECK_CATEGORIES_STYLE in ['OD','OE'] else ( 'containsany' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','CE'] else '???' ),
-        'category_list_style': 'definedcategories' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','OD'] else ( 'explicitcatlist' if CONFIG_CHECK_CATEGORIES_STYLE in ['CE','OE'] else '???' ),
+        'assignment_op': 'operator' if code_style_configletter1=='O' else ( 'containsany' if code_style_configletter1=='C' else '???' ),
+        'category_list_style': 'definedcategories' if code_style_configletter2=='D' else ( 'explicitcatlist' if code_style_configletter2=='E' else ( 'globaldmgrvar' if code_style_configletter2=='G' else '???' ) ),
     }
     code_style_compare = {
-        'assignment_op': 'operator' if CONFIG_CHECK_CATEGORIES_STYLE in ['OD','OE'] else ( 'containsany' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','CE'] else '???' ),
-        'category_list_style': 'explicitcatlist' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','OD'] else ( 'definedcategories' if CONFIG_CHECK_CATEGORIES_STYLE in ['CE','OE'] else '???' ),
+        **code_style,
+        'category_list_style': 'definedcategories' if code_style['category_list_style']=='explicitcatlist' else 'explicitcatlist',
     }
     result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
     result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style ) )
@@ -234,13 +248,15 @@ end if
 """
     }
     result = {**TEMPLATE} # copy, not modify
+    code_style_configletter1 = CONFIG_CHECK_CATEGORIES_STYLE[0] if len(CONFIG_CHECK_CATEGORIES_STYLE)>=2 else None
+    code_style_configletter2 = CONFIG_CHECK_CATEGORIES_STYLE[1] if len(CONFIG_CHECK_CATEGORIES_STYLE)>=2 else None
     code_style = {
-        'assignment_op': 'operator' if CONFIG_CHECK_CATEGORIES_STYLE in ['OD','OE'] else ( 'containsany' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','CE'] else '???' ),
-        'category_list_style': 'definedcategories' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','OD'] else ( 'explicitcatlist' if CONFIG_CHECK_CATEGORIES_STYLE in ['CE','OE'] else '???' ),
+        'assignment_op': 'operator' if code_style_configletter1=='O' else ( 'containsany' if code_style_configletter1=='C' else '???' ),
+        'category_list_style': 'definedcategories' if code_style_configletter2=='D' else ( 'explicitcatlist' if code_style_configletter2=='E' else ( 'globaldmgrvar' if code_style_configletter2=='G' else '???' ) ),
     }
     code_style_compare = {
-        'assignment_op': 'operator' if CONFIG_CHECK_CATEGORIES_STYLE in ['OD','OE'] else ( 'containsany' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','CE'] else '???' ),
-        'category_list_style': 'explicitcatlist' if CONFIG_CHECK_CATEGORIES_STYLE in ['CD','OD'] else ( 'definedcategories' if CONFIG_CHECK_CATEGORIES_STYLE in ['CE','OE'] else '???' ),
+        **code_style,
+        'category_list_style': 'definedcategories' if code_style['category_list_style']=='explicitcatlist' else 'explicitcatlist',
     }
     result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
     result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style ) )
