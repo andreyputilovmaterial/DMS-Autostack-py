@@ -44,7 +44,7 @@ else:
 # and make mdm scripts generation faster,
 # because we are re-creating mdmdoc every time we are processing a new item (should we?)
 # and adding shared lists adds significant time to generating results
-CONFIG_BRING_SHAREDLISTS_TO_NEW_MDMDOC_TO_ADDRESS_CAT_UNRESOLVEDREFERENCES = True
+CONFIG_BRING_SHAREDLISTS_TO_NEW_MDMDOC_TO_ADDRESS_CAT_UNRESOLVEDREFERENCES = False
 
 
 
@@ -91,15 +91,31 @@ def extract_category_name(item_name):
 
 
 
-def get_mdd_data_questions_from_input_data(inp_mdd_scheme):
+# def get_mdd_data_records_from_input_data(inp_mdd_scheme,variable_specs):
+def get_mdd_data_records_from_input_data(inp_mdd_scheme):
     def convert_list_to_dict(data_lst):
         result = {}
         for record in data_lst:
             result[record['name']] = record['value']
         return result
-    mdd_data_questions = ([sect for sect in inp_mdd_scheme['sections'] if sect['name']=='fields'])[0]['content']
-    mdd_data_questions = [ {**q,'properties':convert_list_to_dict(q['properties'] if 'properties' in q else []),'attributes':convert_list_to_dict(q['attributes'] if 'attributes' in q else [])} for q in mdd_data_questions ]
-    return mdd_data_questions
+    # def update_mdd_data_records_with_iterations_from_variable_specs(mdd_data_records,variable_specs):
+    #     for var in variable_specs['variables_metadata']:
+    #         if 'iterations' in var:
+    #             for variable_record in mdd_data_records:
+    #                 if sanitize_item_name(variable_record['name'])==sanitize_item_name(var['name']):
+    #                     variable_record['iterations'] = var['iterations']
+    #     return mdd_data_records
+    mdd_data_records = ([sect for sect in inp_mdd_scheme['sections'] if sect['name']=='fields'])[0]['content']
+    mdd_data_records = [ {**q,'properties':convert_list_to_dict(q['properties'] if 'properties' in q else []),'attributes':convert_list_to_dict(q['attributes'] if 'attributes' in q else [])} for q in mdd_data_records ]
+    # now we want to have category list (aka "list of iterations") added to every variable
+    # approach A
+    # approach A - read it from variable_specs - this is already stored, generated in step02_autostk_var_loop_guesser
+    # unfortunately, category names are normalized to lowercase there - not perfectly beautiful
+    # mdd_data_records = update_mdd_data_records_with_iterations_from_variable_specs(mdd_data_records,variable_specs)
+    # approach B
+    # so I'll use another approach B
+    return mdd_data_records
+
 
 def detect_item_type_from_mdddata_fields_report(item_name):
     item_name_clean = sanitize_item_name(item_name)
@@ -119,13 +135,13 @@ def detect_item_type_from_mdddata_fields_report(item_name):
 
 
 
-def prepare_variable_records(mdd_data_questions,mdd_data_categories):
+def prepare_variable_records(mdd_data_records,mdd_data_categories):
     variable_records = {}
     # for rec in variable_specs['variables_metadata']:
-    for rec in mdd_data_questions:
+    for rec in mdd_data_records:
         question_id_clean = sanitize_item_name(rec['name'])
         variable_records[question_id_clean] = rec
-    for rec in mdd_data_questions:
+    for rec in mdd_data_records:
         path, _ = extract_field_name(rec['name'])
         if path and not (path==''):
             variable_parent = variable_records[sanitize_item_name(path)]
@@ -330,7 +346,7 @@ def process_outerloop(name,key_categories,mdd_data_categories,mdmdoc,previously_
     mdmcategories = prepare_category_list_stk_list(key_categories,mdd_data_categories,mdmdoc)
     print_log_processing('top level stacking loop')
     result_metadata = metadata_functions.generate_scripts_outerstkloop( name, mdmcategories )
-    result_edits = edits_functions.generate_code_outerstkloop_walkthrough( None, None, stk_variable_name=name, unstk_variable_name='', unstk_variable_fieldname='', mdmvariable_iterating_over=None )
+    result_edits = edits_functions.generate_code_outerstkloop_walkthrough( None, None, stk_variable_name=name, unstk_variable_name='', unstk_variable_fieldname='', categories_iterating_over=None )
     # add defines
     assert re.match(r'^\w+$',name,flags=re.I)
     yield {
@@ -354,7 +370,6 @@ def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field
     mdmitem_stk = metadata_functions.generate_updated_metadata_update_all_in_batch(mdmitem_stk,variable_record,mdmdoc)
     _, loop_name_unstk = extract_field_name(path_unstk)
     loop_variable_unstk = variable_records[sanitize_item_name(path_unstk)]
-    mdmvariable_loop_unstk = metadata_functions.generate_metadata_from_scripts(field_name_unstk,loop_variable_unstk['scripting'],loop_variable_unstk['attributes'],mdmdoc)
 
     for result_patch_parent in process_every_parent(path_stk,variable_records,mdmdoc,previously_added):
         yield result_patch_parent
@@ -365,7 +380,7 @@ def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field
     if variable_record['attributes']['object_type_value']==0:
         # it means it's a regular plain variable
         # we can use direct assignment
-        result_edits = edits_functions.generate_code_loop_unstack_simple( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, unstk_variable_name=loop_name_unstk, unstk_variable_fieldname=field_name_unstk, mdmvariable_iterating_over=mdmvariable_loop_unstk )
+        result_edits = edits_functions.generate_code_loop_unstack_simple( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, unstk_variable_name=loop_name_unstk, unstk_variable_fieldname=field_name_unstk, categories_iterating_over=loop_variable_unstk['categories'] )
     else:
         # it's c complex structure
         # unfortunately, direct assignment "A = B" is not working in dms scripts
@@ -375,7 +390,7 @@ def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field
         # anyway, doing euristic analysis is not 100% right, it is not the most performance efficient
         # and stacking is sometimes slow, it can take 8 hours, or more, in some projects, i.e. Disney+&Hulu tracker
         # So I have to generate proper code here iterating over all loops and fields
-        result_edits = edits_functions.generate_code_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, unstk_variable_name=loop_name_unstk, unstk_variable_fieldname=field_name_unstk, mdmvariable_iterating_over=mdmvariable_loop_unstk )
+        result_edits = edits_functions.generate_code_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, unstk_variable_name=loop_name_unstk, unstk_variable_fieldname=field_name_unstk, categories_iterating_over=loop_variable_unstk['categories'] )
     result_patch = {
         'action': 'variable-new',
         'variable': mdmitem_stk.Name,
@@ -402,7 +417,7 @@ def process_stack_a_categorical(mdmitem_stk,field_name_stk,path_stk,mdmitem_unst
 
     # done with parent levels, add record for processing the variable that is stacked
     result_metadata = mdmitem_stk.Script
-    result_edits = edits_functions.generate_code_unstack_categorical_yn( mdmitem_stk, None, stk_variable_name=field_name_stk, unstk_variable_name=field_name_unstk, unstk_variable_fieldname=field_name_unstk, mdmvariable_iterating_over=mdmitem_unstk )
+    result_edits = edits_functions.generate_code_unstack_categorical_yn( mdmitem_stk, None, stk_variable_name=field_name_stk, unstk_variable_name=field_name_unstk, unstk_variable_fieldname=field_name_unstk, categories_iterating_over=variable_record['categories'] )
     result_patch = {
         'action': 'variable-new',
         'variable': mdmitem_stk.Name,
@@ -446,7 +461,7 @@ def process_every_parent(path_stk,variable_records,mdmdoc,previously_added):
             mdmitem = metadata_functions.generate_updated_metadata_clone_excluding_subfields(current_item_stk_name,variable_record_unstk['scripting'],variable_record_unstk['attributes'],mdmdoc)
             mdmitem = metadata_functions.sync_labels_from_mddreport(mdmitem,variable_record_unstk)
             result_metadata = mdmitem.Script
-            result_edits = edits_functions.generate_code_loop_walkthrough( mdmitem, None, stk_variable_name=current_item_stk_name, unstk_variable_name=current_item_stk_name, unstk_variable_fieldname='', mdmvariable_iterating_over=None )
+            result_edits = edits_functions.generate_code_loop_walkthrough( mdmitem, None, stk_variable_name=current_item_stk_name, unstk_variable_name=current_item_stk_name, unstk_variable_fieldname='', categories_iterating_over=None )
             result_patch = {
                 'action': 'variable-new',
                 'variable': current_item_stk_name,
@@ -464,7 +479,7 @@ def print_log_processing(item):
 
 
 
-def generate_patch_stk(variable_specs,mdd_data,config):
+def generate_patch_stk(variable_specs,mdd_data_records,config):
 
 
     # here we have a list of items in the output patch file
@@ -472,12 +487,12 @@ def generate_patch_stk(variable_specs,mdd_data,config):
 
     # # ops that was already done
     # try:
-    #     mdd_data = ([sect for sect in mdd_data['sections'] if sect['name']=='fields'])[0]['content']
+    #     mdd_data_records = ([sect for sect in mdd_data_records['sections'] if sect['name']=='fields'])[0]['content']
     # except:
     #     pass
-    mdd_data_root = [ field for field in mdd_data if field['name']=='' ][0]
-    mdd_data_questions = [ field for field in mdd_data if detect_item_type_from_mdddata_fields_report(field['name'])=='variable' ]
-    mdd_data_categories = [ cat for cat in mdd_data if detect_item_type_from_mdddata_fields_report(cat['name'])=='category' ]
+    mdd_data_root = [ field for field in mdd_data_records if field['name']=='' ][0]
+    mdd_data_questions = [ field for field in mdd_data_records if detect_item_type_from_mdddata_fields_report(field['name'])=='variable' ]
+    mdd_data_categories = [ cat for cat in mdd_data_records if detect_item_type_from_mdddata_fields_report(cat['name'])=='category' ]
 
     # helper variable
     # prep dict with variable data stored in variable_specs
@@ -501,7 +516,7 @@ def generate_patch_stk(variable_specs,mdd_data,config):
     performance_counter = iter(utility_performance_monitor.PerformanceMonitor(config={
         'total_records': len(variable_specs['variables']),
         'report_frequency_records_count': 1,
-        'report_frequency_timeinterval': 9,
+        'report_frequency_timeinterval': 6, # provide update on progress every 6 seconds (print to console)
         'report_text_pipein': 'progress processing variables',
     }))
     for variable_id in variable_specs['variables']:
@@ -550,7 +565,6 @@ def generate_patch_stk(variable_specs,mdd_data,config):
                         path_stk, _ = extract_field_name(full_name_stk)
                         
                         mdmitem_stk = metadata_functions.generate_metadata_from_scripts(mdmitem_loop_field.Name,mdmitem_loop_field.Script,variable_record_unstk['attributes'],mdmdoc)
-                        mdmitem_stk_script = mdmitem_loop_field.Script
                         is_improper_name = check_if_improper_name(mdmitem_loop_field.Name)
                         field_name_stk = mdmitem_loop_field.Name
                         if is_a_single_item_within_loop:
@@ -716,9 +730,10 @@ def entry_point(runscript_config={}):
     
     print('{script_name}: script started at {dt}'.format(dt=time_start,script_name=script_name))
 
-    mdd_data_questions = get_mdd_data_questions_from_input_data(inp_mdd_scheme)
+    # mdd_data_records = get_mdd_data_records_from_input_data(inp_mdd_scheme,variable_specs)
+    mdd_data_records = get_mdd_data_records_from_input_data(inp_mdd_scheme)
 
-    result = generate_patch_stk(variable_specs,mdd_data_questions,config)
+    result = generate_patch_stk(variable_specs,mdd_data_records,config)
     
     result_json = json.dumps(result, indent=4)
 
