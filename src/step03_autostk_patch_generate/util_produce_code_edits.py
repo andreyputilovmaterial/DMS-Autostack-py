@@ -154,18 +154,22 @@ dim brand, cbrand, iter_stk
 ' <<STK_VARIABLE_NAME>>
 for each brand in <<STK_VARIABLE_NAME>>.categories
 cbrand = ccategorical(brand)
-'with <<STK_VARIABLE_NAME>>[cbrand]
-set iter_stk = <<STK_VARIABLE_PATH>><<STK_VARIABLE_NAME>>[cbrand]
-	
-	' STK_ID
-	iter_stk.STK_ID = ctext(brand.name)+"_"+ctext(Respondent.ID)
-	
-	' STK_Iteration
-	iter_stk.STK_Iteration = cbrand
-	
-	' {@}
-	
-'end with
+    ' ADD YOUR EXPRESSION HERE
+    ' if DV_BrandAssigned=*cbrand then
+    if True then
+    'with <<STK_VARIABLE_NAME>>[cbrand]
+    set iter_stk = <<STK_VARIABLE_PATH>><<STK_VARIABLE_NAME>>[cbrand]
+        
+        ' STK_ID
+        iter_stk.STK_ID = ctext(brand.name)+"_"+ctext(Respondent.ID)
+        
+        ' STK_Iteration
+        iter_stk.STK_Iteration = cbrand
+        
+        ' {@}
+        
+    'end with
+    end if
 next
 set iter_stk = null
 """
