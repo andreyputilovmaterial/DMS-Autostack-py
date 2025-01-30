@@ -19,6 +19,30 @@ CONFIG_CHECK_CATEGORIES_STYLE = 'OD'
 
 
 
+
+
+
+def trim_lines(s):
+    if re.match(r'^\s*$',s):
+        return ''
+    s = re.sub(r'^(?:\s*?\n)*','',s,flags=re.DOTALL)
+    s = re.sub(r'(?:\s*?\n)*$','',s,flags=re.DOTALL)
+    s = re.sub(r'\n?$','',s,flags=re.DOTALL)
+    s = s + '\n'
+    return s
+def add_indent(s,indent):
+    s = '\n'+re.sub(r'\n?$','',s) # I am adding a line break at the beginning to make wotking with regexs easier
+    s = re.sub(r'(\n)',lambda m: '{k}{i}'.format(i=indent,k=m[1]),s)
+    s = s[1:] # remove line break at the beginning that we added
+    return s
+
+
+
+
+
+
+
+
 def prepare_syntax_substitutions( d, stk_variable_name='', unstk_variable_name='', unstk_variable_fieldname='' ):
     result = {}
     assert not '.' in stk_variable_name
@@ -37,19 +61,6 @@ def prepare_syntax_substitutions( d, stk_variable_name='', unstk_variable_name='
 
 def generate_recursive_onnextcase_code(mdmitem_stk,mdmitem_ref):
     def recursive(mdmitem_stk,mdmitem_ref,indent,name_part):
-        def trim_lines(s):
-            if re.match(r'^\s*$',s):
-                return ''
-            s = re.sub(r'^(?:\s*?\n)*','',s,flags=re.DOTALL)
-            s = re.sub(r'(?:\s*?\n)*$','',s,flags=re.DOTALL)
-            s = re.sub(r'\n?$','',s,flags=re.DOTALL)
-            s = s + '\n'
-            return s
-        def add_indent(s,indent):
-            s = '\n'+re.sub(r'\n?$','',s) # I am adding a line break at the beginning to make wotking with regexs easier
-            s = re.sub(r'(\n)',lambda m: '{k}{i}'.format(i=indent,k=m[1]),s)
-            s = s[1:] # remove line break at the beginning that we added
-            return s
         if mdmitem_stk.ObjectTypeValue==0 or mdmitem_stk.ObjectTypeValue==0:
             # regular, plain variable
             result = ''
@@ -222,6 +233,7 @@ end if
     }
     result = {**TEMPLATE} # copy, not modify
     result_add = generate_recursive_onnextcase_code(mdmitem_stk,mdmitem_unstk)
+    result_add = add_indent('\n'+trim_lines(result_add)+'\n\n','\t')
     code_style_configletter1 = CONFIG_CHECK_CATEGORIES_STYLE[0] if len(CONFIG_CHECK_CATEGORIES_STYLE)>=2 else None
     code_style_configletter2 = CONFIG_CHECK_CATEGORIES_STYLE[1] if len(CONFIG_CHECK_CATEGORIES_STYLE)>=2 else None
     code_style = {
