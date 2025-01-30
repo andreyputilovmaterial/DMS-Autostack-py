@@ -90,6 +90,42 @@ def extract_category_name(item_name):
 
 
 
+def should_skip(variable_record,variable_records):
+    def check_val_txt(value_assess,value_compare):
+        def trim(s):
+            return re.sub(r'^\s*','',re.sub(r'\s*$','',s))
+        def sanitize(s):
+            s = '{s}'.format(s=s)
+            s = trim(s)
+            s = s.lower()
+            return s
+        return sanitize(value_assess)==sanitize(value_compare)
+    def check_is_assigner_qta(variable_record,variable_records):
+        assigner_found = False
+        path, fieldname = extract_field_name(variable_record['name'])
+        if re.match(r'^\s*?(qta_)(\w+)\s*?$',fieldname,flags=re.I|re.DOTALL):
+            field_name_assigner = re.sub(r'^\s*?(qta_)(\w+)\s*?$',lambda m: '{prefix}{mainpart}'.format(prefix='DV_',mainpart=m[2]),fieldname,flags=re.I|re.DOTALL)
+            variable_name_assigner = sanitize_item_name(trim_dots('{path}.{field}'.format(path=path,field=field_name_assigner)))
+            if variable_name_assigner in variable_records:
+                variable_assigner = variable_records[variable_name_assigner]
+                properties = [ p.lower() for p in variable_record['properties'].keys() ] + [ p.lower() for p in variable_assigner['properties'].keys() ]
+                if 'assignertext' in properties:
+                    assigner_found = True
+        return assigner_found
+    def check_no_case_data(variable_record,variable_records):
+        return ( 'has_case_data' in variable_record['attributes'] and check_val_txt(variable_record['attributes']['has_case_data'],'false') )
+    # 1. check if it's a helper assigner var that in fact we don't need
+    # I'd prefer to trim it in prepdata, but what can I do here, I'll skip
+    if check_is_assigner_qta(variable_record,variable_records):
+        return True
+    # 2. nocasedata - skip
+    if check_no_case_data(variable_record,variable_records):
+        return True
+    # nothing of the above triggered - return "false" (should not skip)
+    return False
+
+
+
 
 # def get_mdd_data_records_from_input_data(inp_mdd_scheme,variable_specs):
 def get_mdd_data_records_from_input_data(inp_mdd_scheme):
@@ -529,6 +565,10 @@ def generate_patch_stk(variable_specs,mdd_data_records,config):
             variable_record_name = variable_record['name']
             field_path, field_name = extract_field_name(variable_record_name)
             variable_type = detect_var_type_by_record(variable_record)
+
+            # detect if we should skip
+            if should_skip(variable_record,variable_records):
+                continue
             
             # grab scripts
             if not 'scripting' in variable_record:
@@ -558,6 +598,8 @@ def generate_patch_stk(variable_specs,mdd_data_records,config):
                         full_name_unstk = '{path}.{field}'.format(path=variable_record_name,field=mdmitem_loop_field.Name)
                         path_unstk, field_name_unstk = extract_field_name(full_name_unstk)
                         variable_record_unstk = variable_records[sanitize_item_name(full_name_unstk)]
+                        if should_skip(variable_record_unstk,variable_records):
+                            continue
                         mdmitem_unstk = metadata_functions.generate_metadata_from_scripts(field_name_unstk,variable_record_unstk['scripting'],variable_record_unstk['attributes'],mdmdoc)
                         
                         outer_path, _ = extract_field_name(variable_record['name'])
