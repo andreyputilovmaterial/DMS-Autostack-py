@@ -1,6 +1,24 @@
 import re
 
 
+
+
+
+if __name__ == '__main__':
+    # run as a program
+    import patch_classes
+elif '.' in __name__:
+    # package
+    from . import patch_classes
+else:
+    # included with no parent package
+    import patch_classes
+
+
+
+
+
+
 # this is for benchmarking and testing
 # first letter is
 #  - "C" (for "ContainsAny"), or
@@ -50,9 +68,9 @@ def prepare_syntax_substitutions( d, stk_variable_name='', unstk_variable_name='
     assert not '.' in unstk_variable_fieldname
     for key in d:
         text = '{s}'.format(s=d[key]) # this line ensures we are working with a copy not reference
-        text = text.replace('<<STK_VARIABLE_NAME>>',stk_variable_name)
-        text = text.replace('<<UNSTK_VARIABLE_NAME>>',unstk_variable_name)
-        text = text.replace('<<UNSTK_VARIABLE_FIELDNAME>>',unstk_variable_fieldname)
+        text = text.replace('<<VAR_LVALUE_NAME>>',stk_variable_name)
+        text = text.replace('<<VAR_RVALUE_NAME>>',unstk_variable_name)
+        text = text.replace('<<VAR_RVALUE_FIELDNAME>>',unstk_variable_fieldname)
         result[key] = text
     result['stk_variable_name'] = stk_variable_name
     result['unstk_variable_name'] = unstk_variable_name
@@ -97,7 +115,7 @@ def generate_recursive_onnextcase_code(mdmitem_stk,mdmitem_ref):
         else:
             raise ValueError('can\'t generate onnextcase codes: unrecognized item type: {t} ( stk var: {stkvar}, unstk var: {unstkvar} )'.format(t=mdmitem_stk.ObjectTypeValue,stkvar=mdmitem_stk.Name,unstkvar=mdmitem_ref.Name))
     result = recursive(mdmitem_stk,mdmitem_ref,indent='',name_part=mdmitem_stk.Name)
-    result = result.replace('<<DEST_PATH>>','<<STK_VARIABLE_PATH>>').replace('<<SOURCE_PATH>>','<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>[cbrand].')
+    result = result.replace('<<DEST_PATH>>','<<VAR_LVALUE_PATH>>').replace('<<SOURCE_PATH>>','<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>[cbrand].')
     return result
 
 
@@ -155,21 +173,21 @@ def generate_code_check_categories( variable_with_categories_name, categories_it
 
 
 
-def generate_code_outerstkloop_walkthrough( mdmitem_stk, mdmitem_unstk, stk_variable_name, unstk_variable_name, unstk_variable_fieldname, categories_iterating_over ):
+def generate_patches_outerstkloop_walkthrough( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, unstk_variable_fieldname, categories_iterating_over ):
     TEMPLATE = {
-        'variable_stk_path': 'iter_stk.',
-        'variable_unstacked_path': '',
+        'variable_lvalue_path': 'iter_stk.',
+        'variable_rvalue_path': '',
         'code': """
 dim brand, cbrand, iter_stk
 
-' <<STK_VARIABLE_NAME>>
-for each brand in <<STK_VARIABLE_NAME>>.categories
+' <<VAR_LVALUE_NAME>>
+for each brand in <<VAR_LVALUE_NAME>>.categories
 cbrand = ccategorical(brand)
     ' ADD YOUR EXPRESSION HERE
     ' if DV_BrandAssigned=*cbrand then
     if True then
-    'with <<STK_VARIABLE_NAME>>[cbrand]
-    set iter_stk = <<STK_VARIABLE_PATH>><<STK_VARIABLE_NAME>>[cbrand]
+    'with <<VAR_LVALUE_NAME>>[cbrand]
+    set iter_stk = <<VAR_LVALUE_PATH>><<VAR_LVALUE_NAME>>[cbrand]
         
         ' STK_ID
         iter_stk.STK_ID = ctext(brand.name)+"_"+ctext(Respondent.ID)
@@ -185,19 +203,31 @@ next
 set iter_stk = null
 """
     }
+    assert stk_variable_path=='', 'generate_patches_outerstkloop_walkthrough, stk_variable_path should be root path, check failed ({s})'.format(s=stk_variable_path)
     result = {**TEMPLATE} # copy, not modify
-    return prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name, unstk_variable_fieldname )
+    result_edits = prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name, unstk_variable_fieldname )
+    yield patch_classes.PatchSectionOnNextCaseInsert(
+        position = patch_classes.Position(stk_variable_path), # root
+        comment = {
+            'description': 'top level stacking loop',
+            'target': '401_PreStack_script',
+        },
+        payload = {
+            'variable': stk_variable_name,
+            'lines': result_edits,
+        },
+    )
 
-def generate_code_loop_unstack_simple( mdmitem_stk, mdmitem_unstk, stk_variable_name, unstk_variable_name, unstk_variable_fieldname, categories_iterating_over ):
+def generate_patches_loop_unstack_simple( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, unstk_variable_fieldname, categories_iterating_over ):
     TEMPLATE = {
-        'variable_stk_path': '<<STK_VARIABLE_PATH>><<STK_VARIABLE_NAME>>.', # not sure we need it, we don't expect that we need to process subfields separately; we need to find some really complicated tests to check it, where we stack at 2 different levels - I can imaging this could happen, let's find some tests and see
-        'variable_unstacked_path': '<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>[cbrand].<<UNSTK_VARIABLE_FIELDNAME>>.', # not sure we need it, we don't expect that we need to process subfields separately; we need to find some really complicated tests to check it, where we stack at 2 different levels - I can imaging this could happen, let's find some tests and see
+        'variable_lvalue_path': '<<VAR_LVALUE_PATH>><<VAR_LVALUE_NAME>>.', # not sure we need it, we don't expect that we need to process subfields separately; we need to find some really complicated tests to check it, where we stack at 2 different levels - I can imaging this could happen, let's find some tests and see
+        'variable_rvalue_path': '<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>[cbrand].<<VAR_RVALUE_FIELDNAME>>.', # not sure we need it, we don't expect that we need to process subfields separately; we need to find some really complicated tests to check it, where we stack at 2 different levels - I can imaging this could happen, let's find some tests and see
         'code': """
-' <<STK_VARIABLE_NAME>>
-' from: <<UNSTK_VARIABLE_NAME>>
+' <<VAR_LVALUE_NAME>>
+' from: <<VAR_RVALUE_NAME>>
 'if <<CATEGORIESCHECKEXAMPLE>> then
 if <<CATEGORIESCHECK>> then
-    <<STK_VARIABLE_PATH>><<STK_VARIABLE_NAME>> = <<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>[cbrand].<<UNSTK_VARIABLE_FIELDNAME>>
+    <<VAR_LVALUE_PATH>><<VAR_LVALUE_NAME>> = <<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>[cbrand].<<VAR_RVALUE_FIELDNAME>>
 end if
 ' {@}
 """
@@ -213,17 +243,29 @@ end if
         **code_style,
         'category_list_style': 'definedcategories' if code_style['category_list_style']=='explicitcatlist' else 'explicitcatlist',
     }
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style ) )
-    return prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name, unstk_variable_fieldname )
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_check_categories( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style ) )
+    result_edits = prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name, unstk_variable_fieldname )
+    yield patch_classes.PatchSectionOnNextCaseInsert(
+        position = patch_classes.Position(stk_variable_path),
+        comment = {
+            'source_from': unstk_variable_name,
+            'target': '401_PreStack_script',
+        },
+        payload = {
+            'variable': stk_variable_name,
+            'lines': result_edits,
+        },
+    )
 
-def generate_code_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name, unstk_variable_name, unstk_variable_fieldname, categories_iterating_over ):
+
+def generate_patches_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, unstk_variable_fieldname, categories_iterating_over ):
     TEMPLATE = {
-        'variable_stk_path': '<<STK_VARIABLE_PATH>><<STK_VARIABLE_NAME>>.', # we need it
-        'variable_unstacked_path': '<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>[cbrand].', # we need it; don't add variable name - it is already generated with recursive code
+        'variable_lvalue_path': '<<VAR_LVALUE_PATH>><<VAR_LVALUE_NAME>>.', # we need it
+        'variable_rvalue_path': '<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>[cbrand].', # we need it; don't add variable name - it is already generated with recursive code
         'code': """
-' <<STK_VARIABLE_NAME>>
-' from: <<UNSTK_VARIABLE_NAME>>
+' <<VAR_LVALUE_NAME>>
+' from: <<VAR_RVALUE_NAME>>
 ' TODO: generate code iterating over all categories and subfields
 'if <<CATEGORIESCHECKEXAMPLE>> then
 if <<CATEGORIESCHECK>> then
@@ -244,21 +286,32 @@ end if
         **code_style,
         'category_list_style': 'definedcategories' if code_style['category_list_style']=='explicitcatlist' else 'explicitcatlist',
     }
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style ) )
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_check_categories( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style ) )
     result['code'] = re.sub(r'^(.*?)\n\s*?\'\s*?\{@\}[^\n]*?\n(.*?)$',lambda m: '{code_begin}{code_add}{code_end}'.format(code_begin=re.sub(r'\n?$','\n',m[1],flags=re.I|re.DOTALL),code_end=re.sub(r'\n?$','\n',m[2],flags=re.I|re.DOTALL),code_add=re.sub(r'\n?$','\n',result_add,flags=re.I|re.DOTALL)),result['code'],flags=re.I|re.DOTALL)
-    return prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name, unstk_variable_fieldname )
+    result_edits = prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name, unstk_variable_fieldname )
+    yield patch_classes.PatchSectionOnNextCaseInsert(
+        position = patch_classes.Position(stk_variable_path),
+        comment = {
+            'source_from': unstk_variable_name,
+            'target': '401_PreStack_script',
+        },
+        payload = {
+            'variable': stk_variable_name,
+            'lines': result_edits,
+        },
+    )
 
-def generate_code_unstack_categorical_yn( mdmitem_stk, mdmitem_unstk, stk_variable_name, unstk_variable_name, unstk_variable_fieldname, categories_iterating_over ):
+def generate_patches_unstack_categorical_yn( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, unstk_variable_fieldname, categories_iterating_over ):
     TEMPLATE = {
-        'variable_stk_path': '<<STK_VARIABLE_PATH>><<STK_VARIABLE_NAME>>', # we definitely not need it and it will not work, it will break, and that's some good news, we'll see that something is off
-        'variable_unstacked_path': '<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', # we definitely not need it and it will not work, it will break, and that's some good news, we'll see that something is off
+        'variable_lvalue_path': '<<VAR_LVALUE_PATH>><<VAR_LVALUE_NAME>>', # we definitely not need it and it will not work, it will break, and that's some good news, we'll see that something is off
+        'variable_rvalue_path': '<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', # we definitely not need it and it will not work, it will break, and that's some good news, we'll see that something is off
         'code': """
-' <<STK_VARIABLE_NAME>>
-' from: <<UNSTK_VARIABLE_NAME>>
+' <<VAR_LVALUE_NAME>>
+' from: <<VAR_RVALUE_NAME>>
 'if <<CATEGORIESCHECKEXAMPLE>> then
 if <<CATEGORIESCHECK>> then
-    <<STK_VARIABLE_PATH>><<STK_VARIABLE_NAME>> = iif( <<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>> is null, null, iif( <<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>=*cbrand, {Yes}, {No} ) )
+    <<VAR_LVALUE_PATH>><<VAR_LVALUE_NAME>> = iif( <<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>> is null, null, iif( <<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>=*cbrand, {Yes}, {No} ) )
 end if
 ' {@}
 """
@@ -274,22 +327,33 @@ end if
         **code_style,
         'category_list_style': 'definedcategories' if code_style['category_list_style']=='explicitcatlist' else 'explicitcatlist',
     }
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style ) )
-    return prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name, unstk_variable_fieldname )
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_check_categories( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style ) )
+    result_edits = prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name, unstk_variable_fieldname )
+    yield patch_classes.PatchSectionOnNextCaseInsert(
+        position = patch_classes.Position(stk_variable_path),
+        comment = {
+            'source_from': unstk_variable_name,
+            'target': '401_PreStack_script',
+        },
+        payload = {
+            'variable': stk_variable_name,
+            'lines': result_edits,
+        },
+    )
 
-def generate_code_loop_walkthrough( mdmitem_stk, mdmitem_unstk, stk_variable_name, unstk_variable_name, unstk_variable_fieldname, categories_iterating_over ):
+def generate_patches_loop_walkthrough( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, unstk_variable_fieldname, categories_iterating_over ):
     TEMPLATE = {
-        'variable_stk_path': 'iter_stk_<<STK_VARIABLE_NAME>>.', # we certainly need
-        'variable_unstacked_path': 'iter_<<UNSTK_VARIABLE_NAME>>.', # we certainly need it
+        'variable_lvalue_path': 'iter_stk_<<VAR_LVALUE_NAME>>.', # we certainly need
+        'variable_rvalue_path': 'iter_<<VAR_RVALUE_NAME>>.', # we certainly need it
         'code': """
-' <<STK_VARIABLE_NAME>>
-' from: <<UNSTK_VARIABLE_NAME>>
+' <<VAR_LVALUE_NAME>>
+' from: <<VAR_RVALUE_NAME>>
 ' process everything within this loop
-dim cat_stk_<<STK_VARIABLE_NAME>>, iter_stk_<<STK_VARIABLE_NAME>>, iter_<<UNSTK_VARIABLE_NAME>>
-for each cat_stk_<<STK_VARIABLE_NAME>> in <<STK_VARIABLE_PATH>><<STK_VARIABLE_NAME>>.Categories
-    set iter_stk_<<STK_VARIABLE_NAME>> = <<STK_VARIABLE_PATH>><<STK_VARIABLE_NAME>>[cat_stk_<<STK_VARIABLE_NAME>>.name]
-    set iter_<<UNSTK_VARIABLE_NAME>> = <<UNSTK_VARIABLE_PATH>><<UNSTK_VARIABLE_NAME>>[cat_stk_<<STK_VARIABLE_NAME>>.name]
+dim cat_stk_<<VAR_LVALUE_NAME>>, iter_stk_<<VAR_LVALUE_NAME>>, iter_<<VAR_RVALUE_NAME>>
+for each cat_stk_<<VAR_LVALUE_NAME>> in <<VAR_LVALUE_PATH>><<VAR_LVALUE_NAME>>.Categories
+    set iter_stk_<<VAR_LVALUE_NAME>> = <<VAR_LVALUE_PATH>><<VAR_LVALUE_NAME>>[cat_stk_<<VAR_LVALUE_NAME>>.name]
+    set iter_<<VAR_RVALUE_NAME>> = <<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>[cat_stk_<<VAR_LVALUE_NAME>>.name]
 
     ' {@}
 
@@ -297,5 +361,16 @@ next
 """
     }
     result = {**TEMPLATE} # copy, not modify
-    return prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name, unstk_variable_fieldname )
+    result_edits = prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name, unstk_variable_fieldname )
+    yield patch_classes.PatchSectionOnNextCaseInsert(
+        position = patch_classes.Position(stk_variable_path),
+        comment = {
+            'source_from': unstk_variable_name,
+            'target': '401_PreStack_script',
+        },
+        payload = {
+            'variable': stk_variable_name,
+            'lines': result_edits,
+        },
+    )
 

@@ -23,6 +23,21 @@ import json
 
 
 
+
+
+# this is an algorithmic approach
+# to choose the right vars that we stack
+# all is done autocatically
+# the code here finds the biggest number of categories that produce the biggest cumulative weight projected to biggest number of variables
+
+# the result is: list of variables, list of categories, and additional data that helps us in debugging
+
+
+
+
+
+
+
 CONFIG_NUM_CATEGORIES_PICK = 3
 CONFIG_WEIGHT_DECREASE_IF_NOT_PRIORITY = 0.0000001
 CONFIG_INITIAL_Q_WGT = 0.01
@@ -50,7 +65,7 @@ def detect_item_type(item_name):
     else:
         raise ValueError('Item name is not recognized, is it a variable or a category: "{s}"'.format(s=item_name))
 
-def extract_field_and_category_part(item_name):
+def extract_category_name(item_name):
     item_name_clean = sanitize_item_name(item_name)
     matches = re.match(r'^\s*?(\w(?:[\w\[\{\]\}\.]*?\w)?)\.(?:categories|elements)\s*?\[\s*?\{?\s*?(\w+)\s*?\}?\]\s*?$',item_name_clean,flags=re.I)
     return matches[1],matches[2]
@@ -80,12 +95,56 @@ def find_adjusted_category_priority(category,config):
 
 
 
+def var_is_assigner(variable):
+    # TODO: maybe check if it's a plain variable (not loop or grid or block) and check if it's categorical
+    # Ahh we should not care about it now,
+    # we are only stacking categoricals,
+    # so this is not possible that we get something else here
+    if 'properties' in variable:
+        for prop in variable['properties']:
+            if re.match(r'^\s*?assignertext\s*?$',prop['name'],flags=re.I|re.DOTALL):
+                return True
+    return False
 
-# class HTMLReport # TODO:
 
 
 
 
+# note: only categorical variables are assessed with this fn
+# we don't have to check if it's an info item, or check loops recursively
+# so I am checking 2 thigs: if it's QTA_... quota assigner var
+# and if it's a "nocasedata" var
+def should_skip(variable,variable_records):
+    def check_is_assigner_qta(variable,variable_records):
+        if re.match(r'(.*?)(\bqta_)(\w+)\s*?$',variable['name'],flags=re.I|re.DOTALL):
+            possible_var_name_assigner = re.sub(r'(.*?)(\bqta_)(\w+)\s*?$',lambda m: '{parentpath}{prefix}{mainpart}'.format(prefix='DV_',mainpart=m[3],parentpath=m[1]),variable['name'],flags=re.I|re.DOTALL)
+            possible_var_name_assigner_lcase = possible_var_name_assigner.lower()
+            if possible_var_name_assigner_lcase in variable_records:
+                variable_assigner = variable_records[possible_var_name_assigner_lcase]
+                return var_is_assigner(variable) or var_is_assigner(variable_assigner)
+        return False
+    def check_no_case_data(variable):
+        if 'attributes' in variable:
+            for attr in variable['attributes']:
+                if attr['name']=='has_case_data':
+                    if attr['value']==False or re.match(r'^\s*?false\s*?$',attr['value'],flags=re.I|re.DOTALL):
+                        return True
+        return False
+    # 1. check if it's a helper assigner var that in fact we don't need
+    # I'd prefer to trim it in prepdata, but what can I do here, I'll skip
+    if check_is_assigner_qta(variable,variable_records):
+        return True
+    # 2. nocasedata - skip
+    if check_no_case_data(variable):
+        return True
+    # nothing of the above triggered - return "false" (should not skip)
+    return False
+
+
+
+
+
+# main fn here
 def find_variables_to_stack(fields_all,config={}):
     
     result_debug_data = {}
@@ -108,32 +167,32 @@ def find_variables_to_stack(fields_all,config={}):
         if item_type=='blank':
             continue
         elif item_type=='variable':
-            field_name = item_name
-            field_name_lcase = field_name.lower()
-            if not field_name_lcase in dict_questions:
-                dict_questions[field_name_lcase] = {
-                'name': '{n}'.format(n=field_name),
+            variable_name = item_name
+            variable_name_lcase = variable_name.lower()
+            if not variable_name_lcase in dict_questions:
+                dict_questions[variable_name_lcase] = {
+                'name': '{n}'.format(n=variable_name),
                 'iterations': [],
-                'records_ref': row,
+                'record_ref': row,
                 'label': row['label'],
             }
-            # dict_questions[field_name_lcase] = {
-            #     **dict_questions[field_name_lcase],
-            #     # 'iterations': dict_questions[field_name_lcase]['iterations']+[],
+            # dict_questions[variable_name_lcase] = {
+            #     **dict_questions[variable_name_lcase],
+            #     # 'iterations': dict_questions[variable_name_lcase]['iterations']+[],
             # }
         elif item_type=='category':
-            field_name,category_name = extract_field_and_category_part(item_name)
-            field_name_lower = field_name.lower()
+            variable_name, category_name = extract_category_name(item_name)
+            variable_name_lower = variable_name.lower()
             category_name_lower = category_name.lower()
-            if not field_name_lower in dict_questions:
+            if not variable_name_lower in dict_questions:
                 raise ValueError('Found a category but did not find a previous record for the variable: "{s}"'.format(s=item_name))
-            dict_questions[field_name_lower]['iterations'].append(category_name_lower)
+            dict_questions[variable_name_lower]['iterations'].append(category_name_lower)
             if not category_name_lower in dict_categories:
                 dict_categories[category_name_lower] = {
                     'name': '{r}'.format(r=category_name),
                     'used': []
                     }
-            dict_categories[category_name_lower]['used'].append(field_name_lower)
+            dict_categories[category_name_lower]['used'].append(variable_name_lower)
         else:
             raise ValueError('Item name is not recognized, is it a variable or a category: "{s}"'.format(s=row['name']))
     
@@ -162,7 +221,8 @@ def find_variables_to_stack(fields_all,config={}):
         all_possible_freqs_percentile_value = list_of_all_possible_freqs[all_possible_freqs_percentile_index]
         #print('len(list_of_all_possible_freqs) = {l0}, list_of_all_possible_freqs[0] = {l1}, list_of_all_possible_freqs[max] = {l2}, u_percentile_75 = {l3}'.format(l0=len(list_of_all_possible_freqs),l1=list_of_all_possible_freqs[0],l2=list_of_all_possible_freqs[len(list_of_all_possible_freqs)-1],l3='list_of_all_possible_freqs[{l0}] = {l1}'.format(l0=all_possible_freqs_percentile_index,l1=list_of_all_possible_freqs[all_possible_freqs_percentile_index])))
         return all_possible_freqs_percentile_value
-    freq_cutoff_value = find_freq_cutoff([ category['adjusted_frequency'] for category_key, category in dict_categories.items() ])
+    # TODO: we are calculating this cutoff and ...we are not using it?
+    freq_cutoff_value = find_freq_cutoff([ category['adjusted_frequency'] for _, category in dict_categories.items() ])
     key_categories = []
     for category_key, category in dict_categories.items():
         # is_key = category['adjusted_frequency'] >= freq_cutoff_value
@@ -171,8 +231,10 @@ def find_variables_to_stack(fields_all,config={}):
         if is_key:
             category['w'] = pow(.5,1/category['adjusted_frequency'])
             key_categories.append(category_key)
-    for q_key, q in dict_questions.items():
+    for _, q in dict_questions.items():
         q['w'] = CONFIG_INITIAL_Q_WGT
+        if var_is_assigner(q['record_ref']):
+            q['w'] = 1 - .35*(1-q['w'])
     
     # assign weights
     QCFlags = set()
@@ -225,8 +287,8 @@ def find_variables_to_stack(fields_all,config={}):
         # stk_questions_combined_list.extend([ q for q in dict_categories[item]['used'] if not q in stk_questions_combined_list])
         stk_questions_combined_list = [ q for q in stk_questions_combined_list if q in dict_categories[item]['used'] ]
     # print('the following questions will be stacked: {q}'.format(q=[dict_questions[q]['name'] for q in stk_questions_combined_list]))
-    for cat in [dict_questions[q]['name'] for q in stk_questions_combined_list]:
-        result_variables.append('{qname}'.format(qname=cat))
+    for var in [dict_questions[q]['name'] for q in stk_questions_combined_list]:
+        result_variables.append('{qname}'.format(qname=var))
     
     # result_categories = []
     result_category_frequencies = {}
@@ -264,10 +326,11 @@ def find_variables_to_stack(fields_all,config={}):
             print('...{n} more warnings not shown'.format(n=len(QCLog)-CONFIG_MAX_WARNINGS))
 
     result = {
-        'variables': result_variables,
+        'variables': [ v for v in result_variables if not should_skip(dict_questions[v]['record_ref'],dict_questions) ],
         'categories': result_categories,
+        'variables_raw': result_variables,
         'variables_metadata': [ dict_questions[qname] for qname in dict.keys(dict_questions) if 'w' in dict_questions[qname] ],
-        'debug_data': result_debug_data,
+        'comment': result_debug_data,
     }
     return result
 
@@ -284,7 +347,6 @@ def entry_point(runscript_config={}):
         prog='mdd-autostacking-pick-variables'
     )
     parser.add_argument(
-        '-1',
         '--inp-mdd-scheme',
         type=str,
         help='JSON with fields data from MDD Input File',

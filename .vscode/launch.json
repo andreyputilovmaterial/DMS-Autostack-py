@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "src/run_universal.py",
             "console": "integratedTerminal",
-            "args": ["--program","mdd-autostacking-pick-variables","--inp-mdd-scheme","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\v1.002\\R2400814M.mdd.json","--config-priority-categories","Disney,Mailchimp,Nike","--output-filename","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\v1.002\\R2400814M.mdd-stack-var-list-suggested.json"],
+            "args": ["--program","mdd-autostacking-pick-variables","--inp-mdd-scheme","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\current\\test_data\\R2400814M.mdd.json","--config-priority-categories","Disney,Mailchimp,Nike","--output-filename","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\current\\test_data\\R2400814M.mdd-stack-var-list-suggested.json"],
             "justMyCode": true
         },
         {
@@ -19,7 +19,7 @@
             "request": "launch",
             "program": "src/run_universal.py",
             "console": "integratedTerminal",
-            "args": ["--program","mdd-autostacking-prepare-patch","--inp-mdd-scheme","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\v1.002\\R2400814M.mdd.json","--var-list","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\v1.002\\R2400814M.mdd-stack-var-list-suggested.json","--output-filename","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\v1.002\\R2400814M.mdd-patch.json"],
+            "args": ["--program","mdd-autostacking-prepare-patch","--inp-mdd-scheme","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\current\\test_data\\R2400814M.mdd.json","--var-list","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\current\\test_data\\R2400814M.mdd-stack-var-list-suggested.json","--output-patch-401","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\current\\test_data\\R2400814M.mdd-patch-401.json","--output-patch-402","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\current\\test_data\\R2400814M.mdd-patch-402.json"],
             "justMyCode": true
         },
         {
@@ -28,7 +28,7 @@
             "request": "launch",
             "program": "src/run_universal.py",
             "console": "integratedTerminal",
-            "args": ["--program","mdd-patch","--action","generate-scripts-metadata","--inp-mdd-scheme","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\v1.002\\R2400814M.mdd.json","--patch","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\v1.002\\R2400814M.mdd-patch.json","--output-filename","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\v1.002\\R2400814M.mdd-stk-mdata.mrs"],
+            "args": ["--program","mdd-patch","--action","generate-scripts-metadata","--inp-mdd-scheme","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\current\\test_data\\R2400814M.mdd.json","--patch","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\current\\test_data\\R2400814M.mdd-patch.json","--output-filename","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\current\\test_data\\R2400814M.mdd-stk-mdata.mrs"],
             "justMyCode": true
         },
         {
@@ -37,7 +37,7 @@
             "request": "launch",
             "program": "src/run_universal.py",
             "console": "integratedTerminal",
-            "args": ["--program","mdd-patch","--action","generate-scripts-edits","--inp-mdd-scheme","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\v1.002\\R2400814M.mdd.json","--patch","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\v1.002\\R2400814M.mdd-patch.json","--output-filename","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\v1.002\\R2400814M.mdd-stk-mdata.mrs"],
+            "args": ["--program","mdd-patch","--action","generate-scripts-edits","--inp-mdd-scheme","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\current\\test_data\\R2400814M.mdd.json","--patch","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\current\\test_data\\R2400814M.mdd-patch.json","--output-filename","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Auto-Stacking\\tests\\current\\test_data\\R2400814M.mdd-stk-mdata.mrs"],
             "justMyCode": true
         }
     ]

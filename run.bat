@@ -3,14 +3,16 @@ SETLOCAL enabledelayedexpansion
 
 
 @REM :: insert your files here
-SET "MDD_FILE=..\tests\v1.002\R2401582.mdd"
+SET "MDD_FILE=..\tests\working\current\R2401582.mdd"
 
 @REM :: the path where outout files are saved
 @REM :: "." means the same directory as this script
 @REM :: empty path ("") means the same directory as your MDD
-@REM :: temporary files are still created at the location of your MDD (it all is configured withing this BAT file - adjust if you need)
+@REM :: temporary files are still created at the location of your MDD (it all is configured within this BAT file - adjust if you need)
 @REM :: but temp files are deleted at the end of script (if you have CLEAN_TEMP_MIDDLE_FILES==1==1)
-SET "OUT_PATH=."
+
+REM SET "OUT_PATH=."
+SET "OUT_PATH="
 
 
 
@@ -54,13 +56,17 @@ IF "%OUT_PATH%"=="" (
     SET "OUT_PATH_AND_NAME=%OUT_PATH%\%MDD_FILE_LAST_NAME%"
 )
 SET "MDD_FILE_SCHEME=%MDD_FILE%.json"
+
 SET "MDD_FILE_VARIABLES=%MDD_FILE%-stack-var-list-suggested.json"
-SET "MDD_FILE_PATCH=%MDD_FILE%-patch.json"
-SET "MDD_FILE_SYNTAX_MDATA=%MDD_FILE%-stk-mdata.mrs"
-SET "MDD_FILE_SYNTAX_EDITS=%MDD_FILE%-stk-edits.mrs"
-SET "MDD_FILE_SYNTAX_DEFS=%MDD_FILE%-stk-defines.mrs"
-SET "MDD_FILE_RESULT_STEP1=%OUT_PATH_AND_NAME%_401_STKPrep.dms"
-SET "MDD_FILE_RESULT_STEP2=%OUT_PATH_AND_NAME%_402_STKCreate.dms"
+
+SET "MDD_FILE_PATCH_STEP401=%MDD_FILE%-patch-401.json"
+SET "MDD_FILE_PATCH_STEP402=%MDD_FILE%-patch-402.json"
+
+SET "MDD_FILE_TEMP_STEP401=%MDD_FILE%_401_temp.dms"
+SET "MDD_FILE_TEMP_STEP402=%MDD_FILE%_402_temp.dms"
+
+SET "MDD_FILE_RESULT_STEP401=%OUT_PATH_AND_NAME%_401_STKPrep.dms"
+SET "MDD_FILE_RESULT_STEP402=%OUT_PATH_AND_NAME%_402_STKCreate.dms"
 
 ECHO -
 ECHO 1. read MDD
@@ -82,24 +88,22 @@ python dist/mdmautostktoolsap_bundle.py --program mdd-autostacking-pick-variable
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
 
 ECHO -
-ECHO 3. prepare patch file
-python dist/mdmautostktoolsap_bundle.py --program mdd-autostacking-prepare-patch --inp-mdd-scheme "%MDD_FILE_SCHEME%" --var-list "%MDD_FILE_VARIABLES%" --output-filename "%MDD_FILE_PATCH%"
+ECHO 3. generate patch file
+python dist/mdmautostktoolsap_bundle.py --program mdd-autostacking-prepare-patch --inp-mdd-scheme "%MDD_FILE_SCHEME%" --var-list "%MDD_FILE_VARIABLES%" --output-patch-401 "%MDD_FILE_PATCH_STEP401%" --output-patch-402 "%MDD_FILE_PATCH_STEP402%"
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
 
 ECHO -
-ECHO 4. produce files
-python dist/mdmautostktoolsap_bundle.py --program mdd-patch --action generate-scripts-metadata --inp-mdd-scheme "%MDD_FILE_SCHEME%" --patch "%MDD_FILE_PATCH%" --output-filename "%MDD_FILE_SYNTAX_MDATA%"
+ECHO 4. temporary files with base templates
+python dist/mdmautostktoolsap_bundle.py --program mdd-autostk-text-utility --action template-401 --output-filename "%MDD_FILE_TEMP_STEP401%"
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
-python dist/mdmautostktoolsap_bundle.py --program mdd-patch --action generate-scripts-edits --inp-mdd-scheme "%MDD_FILE_SCHEME%" --patch "%MDD_FILE_PATCH%" --output-filename "%MDD_FILE_SYNTAX_EDITS%"
-if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
-FOR /F "delims=" %%i IN ('python -c "import sys;import json;f=open(sys.argv[1],'r');data=json.load(f);f.close();data=[d for d in data if d['action']=='section-insert-lines'];f=open(sys.argv[2],'w');json.dump(data,f);f.close();print('processing definitions: done');" "%MDD_FILE_PATCH%" "%MDD_FILE_SYNTAX_DEFS%"') DO ECHO "%%i"
+python dist/mdmautostktoolsap_bundle.py --program mdd-autostk-text-utility --action template-402 --output-filename "%MDD_FILE_TEMP_STEP402%"
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
 
 ECHO -
-ECHO 5. put it all together
-python dist/mdmautostktoolsap_bundle.py --program mdd-autostk-text-utility --action template-401 --replace-mdata "%MDD_FILE_SYNTAX_MDATA%" --replace-edits "%MDD_FILE_SYNTAX_EDITS%" --replace-defs "%MDD_FILE_SYNTAX_DEFS%" --output-filename "%MDD_FILE_RESULT_STEP1%"
+ECHO 5. patch templates and save as final files
+python dist/mdmautostktoolsap_bundle.py --program mdd-patch --inp-filename "%MDD_FILE_TEMP_STEP401%" --inp-type dms --patch "%MDD_FILE_PATCH_STEP401%" --output-filename "%MDD_FILE_RESULT_STEP401%"
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
-python dist/mdmautostktoolsap_bundle.py --program mdd-autostk-text-utility --action template-402 --replace-defs "%MDD_FILE_SYNTAX_DEFS%" --output-filename "%MDD_FILE_RESULT_STEP2%"
+python dist/mdmautostktoolsap_bundle.py --program mdd-patch --inp-filename "%MDD_FILE_TEMP_STEP402%" --inp-type dms --patch "%MDD_FILE_PATCH_STEP402%" --output-filename "%MDD_FILE_RESULT_STEP402%"
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
 
 
@@ -111,10 +115,10 @@ ECHO 7 del .json temporary files
 IF %CLEAN_TEMP_MIDDLE_FILES% (
     DEL "%MDD_FILE_SCHEME%"
     DEL "%MDD_FILE_VARIABLES%"
-    DEL "%MDD_FILE_PATCH%"
-    DEL "%MDD_FILE_SYNTAX_MDATA%"
-    DEL "%MDD_FILE_SYNTAX_EDITS%"
-    DEL "%MDD_FILE_SYNTAX_DEFS%"
+    DEL "%MDD_FILE_PATCH_STEP401%"
+    DEL "%MDD_FILE_PATCH_STEP402%"
+    DEL "%MDD_FILE_TEMP_STEP401%"
+    DEL "%MDD_FILE_TEMP_STEP402%"
 )
 
 ECHO -
