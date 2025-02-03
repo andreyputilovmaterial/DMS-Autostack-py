@@ -377,7 +377,7 @@ def process_outerloop(name,key_categories,category_records,mdmdoc,get_list_exist
     
 
 def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field_name_unstk,path_unstk,variable_record,variable_records,mdmdoc,get_list_existing_items,config):
-    mdmitem_stk = metadata_functions.sync_labels_from_mddreport(mdmitem_stk,variable_record)
+    mdmitem_stk = metadata_functions.sync_labels_and_key_spss_properties_from_mddreport(mdmitem_stk,variable_record)
     mdmitem_stk = metadata_functions.generate_updated_metadata_update_all_in_batch(mdmitem_stk,variable_record,mdmdoc)
     _, loop_name_unstk = util_vars.extract_field_name(path_unstk)
     loop_variable_unstk = variable_records[util_vars.sanitize_item_name(path_unstk)]
@@ -480,7 +480,7 @@ def process_every_parent(path_stk,variable_records,mdmdoc,get_list_existing_item
             # create it
             variable_record_unstk = variable_records[util_vars.sanitize_item_name(full_path_unstk)]
             mdmitem = metadata_functions.generate_updated_metadata_clone_excluding_subfields(current_item_stk_name,variable_record_unstk['scripting'],variable_record_unstk['attributes'],mdmdoc)
-            mdmitem = metadata_functions.sync_labels_from_mddreport(mdmitem,variable_record_unstk)
+            mdmitem = metadata_functions.sync_labels_and_key_spss_properties_from_mddreport(mdmitem,variable_record_unstk)
             result_metadata = mdmitem.Script
             yield patch_classes.PatchSectionMetadataInsert(
                 position = patch_classes.Position(current_item_stk_path),

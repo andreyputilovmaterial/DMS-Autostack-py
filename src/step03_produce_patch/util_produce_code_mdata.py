@@ -242,7 +242,7 @@ def generate_category_metadata(name,label,properties,mdmdoc):
         mdmelem.Properties[prop_name] = prop_value
     return mdmelem
 
-def sync_labels_from_mddreport(mdmitem,variable_record):
+def sync_labels_and_key_spss_properties_from_mddreport(mdmitem,variable_record):
     def extract_field_name(item_name):
         m = re.match(r'^\s*((?:\w.*?\.)*)(\w+)\s*$',item_name,flags=re.I)
         if m:
@@ -268,14 +268,13 @@ def sync_labels_from_mddreport(mdmitem,variable_record):
             else:
                 print('WARNING: updating labels: category type not recognized: {s}'.format(s=mdmelem.Name))
     # 1. update item label
-    try:
-        label_upd = variable_record['label']
-        if label_upd:
-            mdmitem.Label = label_upd
-    except Exception as e:
-        print('Error: updating labels: something happened when synchronizing labels of  {name} ({report_name})'.format(name=mdmitem.Name,report_name=variable_record['name']))
-        print(e)
-        pass
+    label_upd = variable_record['label']
+    if label_upd:
+        mdmitem.Label = label_upd
+    for prop_name, prop_value in variable_record['properties'].items():
+        prop_name_lower = prop_name.lower()
+        if prop_name_lower == 'shortname' or prop_name_lower == 'fullname' or 'remove' in prop_name_lower:
+            mdmitem.Properties[prop_name] = prop_value
     # 2. update labels for all categories
     try:
         potentially_has_categories_stkver = ( (mdmitem.ObjectTypeValue==0 and mdmitem.DataType==3) or ( mdmitem.ObjectTypeValue==1 or mdmitem.ObjectTypeValue==2 ) )
@@ -289,6 +288,14 @@ def sync_labels_from_mddreport(mdmitem,variable_record):
                     label_upd = matching[0]['label']
                     if label_upd:
                         mdmcat.Label = label_upd
+                    for prop_name, prop_value in matching[0]['properties'].items():
+                        prop_name_lower = prop_name.lower()
+                        # if prop_name_lower == 'value' or 'remove' in prop_name_lower:
+                        if 'logic' in prop_name_lower or 'origin' in prop_name_lower:
+                            # skip those
+                            pass
+                        else:
+                            mdmcat.Properties[prop_name] = prop_value
                 else:
                     print('WARNING: updating labels: no matching category: {name}, variable name: {var_name} ({report_name})'.format(name=mdmcat.Name,var_name=mdmitem.Name,report_name=variable_record['name']))
     except Exception as e:
@@ -306,7 +313,7 @@ def sync_labels_from_mddreport(mdmitem,variable_record):
                 matching = [ item for item in variable_record['subfields'] if sanitize_item_name(mdmfield.Name)==sanitize_field_name(item['name']) ]
                 if len(matching)>0:
                     subfield_variable_record = matching[0]
-                    sync_labels_from_mddreport(mdmfield,subfield_variable_record)
+                    sync_labels_and_key_spss_properties_from_mddreport(mdmfield,subfield_variable_record)
                 else:
                     print('WARNING: updating labels: no matching subfield: {name}, variable name: {var_name} ({report_name})'.format(name=mdmfield.Name,var_name=mdmitem.Name,report_name=variable_record['name']))
     except Exception as e:
