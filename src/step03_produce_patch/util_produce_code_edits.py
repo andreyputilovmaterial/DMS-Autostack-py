@@ -30,9 +30,9 @@ else:
 #  - "G" (for "global" dmgr job variables - we'll read category list in OnJobStart event, and then use this list)
 # I will try different syntax styles and benchmark speed
 # CONFIG_CHECK_CATEGORIES_STYLE = 'CD'
-# CONFIG_CHECK_CATEGORIES_STYLE = 'OD'
+CONFIG_CHECK_CATEGORIES_STYLE = 'OD'
 # CONFIG_CHECK_CATEGORIES_STYLE = 'CE'
-CONFIG_CHECK_CATEGORIES_STYLE = 'OE'
+# CONFIG_CHECK_CATEGORIES_STYLE = 'OE'
 # CONFIG_CHECK_CATEGORIES_STYLE = 'CG'
 # CONFIG_CHECK_CATEGORIES_STYLE = 'OG'
 
@@ -251,7 +251,7 @@ end if
         'category_list_style': 'definedcategories' if code_style['category_list_style']=='explicitcatlist' else 'explicitcatlist',
     }
     if ( '<<CATEGORIESCHECK>>' in result['code'] or '<<CATEGORIESCHECKEXAMPLE>>' in result['code'] ) and ( code_style_configletter2=='G' ):
-        result_onjobstart_edits = '\' TODO: produce code for <<VARNAME>>...\n'
+        result_onjobstart_edits = '\t\' TODO: produce code for <<VARNAME>>...\n'
         yield patch_classes.PatchSectionOtherInsert(
             position = patch_classes.Position(-1),
             section_name = 'OnJobStart',
@@ -309,7 +309,7 @@ end if
         'category_list_style': 'definedcategories' if code_style['category_list_style']=='explicitcatlist' else 'explicitcatlist',
     }
     if ( '<<CATEGORIESCHECK>>' in result['code'] or '<<CATEGORIESCHECKEXAMPLE>>' in result['code'] ) and ( code_style_configletter2=='G' ):
-        result_onjobstart_edits = '\' TODO: produce code for <<VARNAME>>...\n'
+        result_onjobstart_edits = '\t\' TODO: produce code for <<VARNAME>>...\n'
         yield patch_classes.PatchSectionOtherInsert(
             position = patch_classes.Position(-1),
             section_name = 'OnJobStart',
@@ -365,7 +365,7 @@ end if
         'category_list_style': 'definedcategories' if code_style['category_list_style']=='explicitcatlist' else 'explicitcatlist',
     }
     if ( '<<CATEGORIESCHECK>>' in result['code'] or '<<CATEGORIESCHECKEXAMPLE>>' in result['code'] ) and ( code_style_configletter2=='G' ):
-        result_onjobstart_edits = '\' TODO: produce code for <<VARNAME>>...\n'
+        result_onjobstart_edits = '\t\' TODO: produce code for <<VARNAME>>...\n'
         yield patch_classes.PatchSectionOtherInsert(
             position = patch_classes.Position(-1),
             section_name = 'OnJobStart',
