@@ -74,7 +74,7 @@ class PatchSectionOutputSourceInsert(Patch):
     def __init__(self,position,payload,comment=None):
         raise PatchError('Patch: PatchSectionOnNextCaseInsert: not implemented')
 
-class PatchSectionOther(Patch):
+class PatchSectionOtherInsert(Patch):
     action = 'section/other/insert'
     def __init__(self,position,section_name,payload,comment=None):
         def clean(section_name):

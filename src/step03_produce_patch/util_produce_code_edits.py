@@ -18,6 +18,7 @@ else:
 
 
 
+# TODO: pass CONFIG_CHECK_CATEGORIES_STYLE in config
 
 # this is for benchmarking and testing
 # first letter is
@@ -29,9 +30,9 @@ else:
 #  - "G" (for "global" dmgr job variables - we'll read category list in OnJobStart event, and then use this list)
 # I will try different syntax styles and benchmark speed
 # CONFIG_CHECK_CATEGORIES_STYLE = 'CD'
-CONFIG_CHECK_CATEGORIES_STYLE = 'OD'
+# CONFIG_CHECK_CATEGORIES_STYLE = 'OD'
 # CONFIG_CHECK_CATEGORIES_STYLE = 'CE'
-# CONFIG_CHECK_CATEGORIES_STYLE = 'OE'
+CONFIG_CHECK_CATEGORIES_STYLE = 'OE'
 # CONFIG_CHECK_CATEGORIES_STYLE = 'CG'
 # CONFIG_CHECK_CATEGORIES_STYLE = 'OG'
 
@@ -123,7 +124,8 @@ def generate_recursive_onnextcase_code(mdmitem_stk,mdmitem_ref):
 
 
 
-def generate_code_check_categories( variable_with_categories_name, categories_iterating_over, category_check, code_style={} ):
+def generate_code_categories_containsany( variable_with_categories_name, categories_iterating_over, category_check, code_style={} ):
+    
     class Cat:
         # the only goal is to provide conversion to str method
         # so that we don't care if we pass mdm categories, dict with 'name' attribute, or just categories as strings
@@ -143,31 +145,36 @@ def generate_code_check_categories( variable_with_categories_name, categories_it
                 return '{s}'.format(s=self.o.Name)
             else:
                 return '{s}'.format(s=self.o)
-    assert categories_iterating_over is not None
+    
+    assert categories_iterating_over is not None, 'warning: generate_code_categories_containsany: categories_iterating_over is None'
+
     code_style_assignment_op = 'operator'
     if 'assignment_op' in code_style:
         code_style_assignment_op = code_style['assignment_op']
     code_style_category_list_style = 'definedcategories'
     if 'category_list_style' in code_style:
         code_style_category_list_style = code_style['category_list_style']
+
     result = None
+
     if code_style_assignment_op=='operator':
         result = '<<CATCHECK>> =* {<<CATLIST>>}'
     elif code_style_assignment_op=='containsany':
         result = 'containsany( <<CATCHECK>>, {<<CATLIST>>} )'
     else:
-        raise ValueError('generate_code_check_categories: unrecognized code_style_assignment_op: {s}'.format(s=code_style_assignment_op))
+        raise ValueError('generate_code_categories_containsany: unrecognized code_style_assignment_op: {s}'.format(s=code_style_assignment_op))
     if code_style_category_list_style=='definedcategories':
         result = result.replace('{<<CATLIST>>}','<<VARNAME>>.DefinedCategories()')
     elif code_style_category_list_style=='explicitcatlist':
         result = result.replace('<<CATLIST>>',','.join(['{s}'.format(s=Cat(cat)) for cat in categories_iterating_over]))
     elif code_style_category_list_style=='globaldmgrvar':
         result = result.replace('{<<CATLIST>>}','dmgrGlobal.DefinedCategories_<<VARNAME>>')
-        raise ValueError('generating code with dmgrGlobal - not implemented yet (it is more complicated than it\'s looking)')
+        # raise ValueError('generating code with dmgrGlobal - not implemented yet (it is more complicated than it\'s looking)')
     else:
-        raise ValueError('generate_code_check_categories: unrecognized code_style_category_list_style: {s}'.format(s=code_style_category_list_style))
+        raise ValueError('generate_code_categories_containsany: unrecognized code_style_category_list_style: {s}'.format(s=code_style_category_list_style))
     result = result.replace('<<CATCHECK>>',category_check)
     result = result.replace('<<VARNAME>>',variable_with_categories_name)
+
     return result
 
 
@@ -243,8 +250,23 @@ end if
         **code_style,
         'category_list_style': 'definedcategories' if code_style['category_list_style']=='explicitcatlist' else 'explicitcatlist',
     }
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_check_categories( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style ) )
+    if ( '<<CATEGORIESCHECK>>' in result['code'] or '<<CATEGORIESCHECKEXAMPLE>>' in result['code'] ) and ( code_style_configletter2=='G' ):
+        result_onjobstart_edits = '\' TODO: produce code for <<VARNAME>>...\n'
+        yield patch_classes.PatchSectionOtherInsert(
+            position = patch_classes.Position(-1),
+            section_name = 'OnJobStart',
+            comment = {
+                'source_from': unstk_variable_name,
+                'source_for': stk_variable_name,
+                'target': '401_PreStack_script',
+            },
+            payload = {
+                'variable': stk_variable_name,
+                'lines': result_onjobstart_edits,
+            },
+        )
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_categories_containsany( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_categories_containsany( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style ) )
     result_edits = prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name, unstk_variable_fieldname )
     yield patch_classes.PatchSectionOnNextCaseInsert(
         position = patch_classes.Position(stk_variable_path),
@@ -286,8 +308,23 @@ end if
         **code_style,
         'category_list_style': 'definedcategories' if code_style['category_list_style']=='explicitcatlist' else 'explicitcatlist',
     }
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_check_categories( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style ) )
+    if ( '<<CATEGORIESCHECK>>' in result['code'] or '<<CATEGORIESCHECKEXAMPLE>>' in result['code'] ) and ( code_style_configletter2=='G' ):
+        result_onjobstart_edits = '\' TODO: produce code for <<VARNAME>>...\n'
+        yield patch_classes.PatchSectionOtherInsert(
+            position = patch_classes.Position(-1),
+            section_name = 'OnJobStart',
+            comment = {
+                'source_from': unstk_variable_name,
+                'source_for': stk_variable_name,
+                'target': '401_PreStack_script',
+            },
+            payload = {
+                'variable': stk_variable_name,
+                'lines': result_onjobstart_edits,
+            },
+        )
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_categories_containsany( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_categories_containsany( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style ) )
     result['code'] = re.sub(r'^(.*?)\n\s*?\'\s*?\{@\}[^\n]*?\n(.*?)$',lambda m: '{code_begin}{code_add}{code_end}'.format(code_begin=re.sub(r'\n?$','\n',m[1],flags=re.I|re.DOTALL),code_end=re.sub(r'\n?$','\n',m[2],flags=re.I|re.DOTALL),code_add=re.sub(r'\n?$','\n',result_add,flags=re.I|re.DOTALL)),result['code'],flags=re.I|re.DOTALL)
     result_edits = prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name, unstk_variable_fieldname )
     yield patch_classes.PatchSectionOnNextCaseInsert(
@@ -327,8 +364,23 @@ end if
         **code_style,
         'category_list_style': 'definedcategories' if code_style['category_list_style']=='explicitcatlist' else 'explicitcatlist',
     }
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_check_categories( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_check_categories( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style ) )
+    if ( '<<CATEGORIESCHECK>>' in result['code'] or '<<CATEGORIESCHECKEXAMPLE>>' in result['code'] ) and ( code_style_configletter2=='G' ):
+        result_onjobstart_edits = '\' TODO: produce code for <<VARNAME>>...\n'
+        yield patch_classes.PatchSectionOtherInsert(
+            position = patch_classes.Position(-1),
+            section_name = 'OnJobStart',
+            comment = {
+                'source_from': unstk_variable_name,
+                'source_for': stk_variable_name,
+                'target': '401_PreStack_script',
+            },
+            payload = {
+                'variable': stk_variable_name,
+                'lines': result_onjobstart_edits,
+            },
+        )
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_categories_containsany( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
+    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_categories_containsany( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style ) )
     result_edits = prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name, unstk_variable_fieldname )
     yield patch_classes.PatchSectionOnNextCaseInsert(
         position = patch_classes.Position(stk_variable_path),
