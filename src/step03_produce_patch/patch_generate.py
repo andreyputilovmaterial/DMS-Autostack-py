@@ -372,7 +372,7 @@ def process_outerloop(name,key_categories,category_records,mdmdoc,get_list_exist
             'attributes': { 'object_type_value': 1, 'label': None, 'type': 'array' },
         },
     )
-    for chunk in onnextcase_functions.generate_patches_outerstkloop_walkthrough( None, None, stk_variable_name=name, stk_variable_path='', unstk_variable_name='', unstk_variable_fieldname='', categories_iterating_over=None ):
+    for chunk in onnextcase_functions.generate_patches_outerstkloop_walkthrough( None, None, stk_variable_name=name, stk_variable_path='', unstk_variable_name='', categories_iterating_over=None ):
         yield chunk
     
 
@@ -399,11 +399,13 @@ def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field
             'attributes': variable_record['attributes'],
         },
     )
-    if variable_record['attributes']['object_type_value']==0:
-        # it means it's a regular plain variable
-        # we can use direct assignment
-        for chunk in onnextcase_functions.generate_patches_loop_unstack_simple( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, stk_variable_path=path_stk, unstk_variable_name=loop_name_unstk, unstk_variable_fieldname=field_name_unstk, categories_iterating_over=loop_variable_unstk['categories'] ):
-            yield chunk
+    # if variable_record['attributes']['object_type_value']==0:
+    if False:
+        # # it means it's a regular plain variable
+        # # we can use direct assignment
+        # for chunk in onnextcase_functions.generate_patches_loop_unstack_simple( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, stk_variable_path=path_stk, unstk_variable_name=loop_name_unstk, unstk_variable_fieldname=field_name_unstk, categories_iterating_over=loop_variable_unstk['categories'] ):
+        #     yield chunk
+        pass
     else:
         # it's c complex structure
         # unfortunately, direct assignment "A = B" is not working in dms scripts
@@ -413,7 +415,7 @@ def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field
         # anyway, doing euristic analysis is not 100% right, it is not the most performance efficient
         # and stacking is sometimes slow, it can take 8 hours, or more, in some projects, i.e. Disney+&Hulu tracker
         # So I have to generate proper code here iterating over all loops and fields
-        for chunk in onnextcase_functions.generate_patches_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, stk_variable_path=path_stk, unstk_variable_name=loop_name_unstk, unstk_variable_fieldname=field_name_unstk, categories_iterating_over=loop_variable_unstk['categories'] ):
+        for chunk in onnextcase_functions.generate_patches_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, stk_variable_path=path_stk, unstk_variable_name=loop_name_unstk, categories_iterating_over=loop_variable_unstk['categories'] ):
             yield chunk
         
     count_entries_stk = len( [ item for item in get_list_existing_items() if util_vars.sanitize_item_name(util_vars.trim_dots('{path}.{field_name}'.format(path=path_stk,field_name=field_name_stk)))==util_vars.sanitize_item_name(item) ] )
@@ -444,7 +446,7 @@ def process_stack_a_categorical(mdmitem_stk,field_name_stk,path_stk,mdmitem_unst
             'attributes': variable_record['attributes'],
         },
     )
-    for chunk in onnextcase_functions.generate_patches_unstack_categorical_yn( mdmitem_stk, None, stk_variable_name=field_name_stk, stk_variable_path=path_stk, unstk_variable_name=field_name_unstk, unstk_variable_fieldname=field_name_unstk, categories_iterating_over=variable_record['categories'] ):
+    for chunk in onnextcase_functions.generate_patches_unstack_categorical_yn( mdmitem_stk, None, stk_variable_name=field_name_stk, stk_variable_path=path_stk, unstk_variable_name=field_name_unstk, categories_iterating_over=variable_record['categories'] ):
         yield chunk
     
     count_entries_stk = len( [ item for item in get_list_existing_items() if util_vars.sanitize_item_name(util_vars.trim_dots('{path}.{field_name}'.format(path=path_stk,field_name=field_name_stk)))==util_vars.sanitize_item_name(item) ] )
@@ -492,7 +494,7 @@ def process_every_parent(path_stk,variable_records,mdmdoc,get_list_existing_item
                     'attributes': variable_record_unstk['attributes'],
                 },
             )
-            for chunk in onnextcase_functions.generate_patches_loop_walkthrough( mdmitem, None, stk_variable_name=current_item_stk_name, stk_variable_path=current_item_stk_path, unstk_variable_name=current_item_stk_name, unstk_variable_fieldname='', categories_iterating_over=None ):
+            for chunk in onnextcase_functions.generate_patches_loop_walkthrough( mdmitem, None, stk_variable_name=current_item_stk_name, stk_variable_path=current_item_stk_path, unstk_variable_name=current_item_stk_name, categories_iterating_over=None ):
                 yield chunk
             parent, rest = util_vars.extract_parent_name(rest)
 

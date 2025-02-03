@@ -103,13 +103,13 @@ ECHO -
 ECHO 5. patch templates and save as final files
 
 ECHO -
-ECHO 401_PreStack.dms script
+ECHO 5.401 - 401_PreStack.dms script
 
 python dist/mdmautostktoolsap_bundle.py --program mdd-patch --inp-filename "%MDD_FILE_TEMP_STEP401%" --inp-type dms --patch "%MDD_FILE_PATCH_STEP401%" --output-filename "%MDD_FILE_RESULT_STEP401%"
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
 
 ECHO -
-ECHO 402_Stack.dms script
+ECHO 5.402 - 402_Stack.dms script
 
 python dist/mdmautostktoolsap_bundle.py --program mdd-patch --inp-filename "%MDD_FILE_TEMP_STEP402%" --inp-type dms --patch "%MDD_FILE_PATCH_STEP402%" --output-filename "%MDD_FILE_RESULT_STEP402%"
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
