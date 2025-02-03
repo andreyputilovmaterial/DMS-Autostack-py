@@ -4,3 +4,6 @@
 [submodule "src-make/lib/pinliner"]
 	path = src-make/lib/pinliner
 	url = https://github.com/The-city-not-present/pinliner.git
+[submodule "src/lib/mdmpatchpy"]
+	path = src/lib/mdmpatchpy
+	url = https://github.com/andreyputilovmaterial/MDM-Patchtools-py.git

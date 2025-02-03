@@ -15,7 +15,7 @@ if __name__ == '__main__':
     from step02_guess_vars import entry as autostk_var_guesser
     from step03_produce_patch import entry as autostk_patch_generate
     from step04_text_utility import templater as autostk_templates
-    from step05_mdd_patch import entry as mdd_patch
+    from lib.mdmpatchpy import entry as mdd_patch
 elif '.' in __name__:
     # package
     from .lib.mdmreadpy import read_mdd
@@ -23,7 +23,7 @@ elif '.' in __name__:
     from .step02_guess_vars import entry as autostk_var_guesser
     from .step03_produce_patch import entry as autostk_patch_generate
     from .step04_text_utility import templater as autostk_templates
-    from .step05_mdd_patch import entry as mdd_patch
+    from .lib.mdmpatchpy import entry as mdd_patch
 else:
     # included with no parent package
     from lib.mdmreadpy import read_mdd
@@ -31,7 +31,7 @@ else:
     from step02_guess_vars import entry as autostk_var_guesser
     from step03_produce_patch import entry as autostk_patch_generate
     from step04_text_utility import templater as autostk_templates
-    from step05_mdd_patch import entry as mdd_patch
+    from lib.mdmpatchpy import entry as mdd_patch
 
 
 
