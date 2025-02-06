@@ -36,11 +36,11 @@ else:
 #  - "G" (for "global" dmgr job variables - we'll read category list in OnJobStart event, and then use this list)
 # I will try different syntax styles and benchmark speed
 # CONFIG_CHECK_CATEGORIES_STYLE = 'CD'
-CONFIG_CHECK_CATEGORIES_STYLE = 'OD'
+# CONFIG_CHECK_CATEGORIES_STYLE = 'OD'
 # CONFIG_CHECK_CATEGORIES_STYLE = 'CE'
 # CONFIG_CHECK_CATEGORIES_STYLE = 'OE'
 # CONFIG_CHECK_CATEGORIES_STYLE = 'CG'
-# CONFIG_CHECK_CATEGORIES_STYLE = 'OG'
+CONFIG_CHECK_CATEGORIES_STYLE = 'OG'
 
 
 
@@ -251,7 +251,7 @@ def generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, s
     result = {**template} # copy, not modify
 
     is_recursive = '<<RECURSIVE>>' in result['code']
-    is_iterative = '<<CATEGORIESCHECK>>' in result['code'] or '<<CATEGORIESCHECKEXAMPLE>>' in result['code']
+    is_iterative = '<<CATEGORIESCHECK>>' in result['code']
 
     if is_recursive:
         is_simple = mdmitem_stk.ObjectTypeValue==0
@@ -273,12 +273,24 @@ def generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, s
             'assignment_op': 'operator' if code_style_configletter1=='O' else ( 'containsany' if code_style_configletter1=='C' else '???' ),
             'category_list_style': 'definedcategories' if code_style_configletter2=='D' else ( 'explicitcatlist' if code_style_configletter2=='E' else ( 'globaldmgrvar' if code_style_configletter2=='G' else '???' ) ),
         }
-        code_style_compare = {
+        code_style_compare_alt1 = {
             **code_style,
-            'category_list_style': 'definedcategories' if code_style['category_list_style']=='explicitcatlist' else 'explicitcatlist',
+            'category_list_style': 'explicitcatlist' if not(code_style['category_list_style']=='explicitcatlist') else 'definedcategories',
+        }
+        code_style_compare_alt2 = {
+            **code_style,
+            'category_list_style': 'globaldmgrvar' if not(code_style['category_list_style']=='globaldmgrvar') else 'definedcategories',
         }
         if code_style_configletter2=='G':
             # variable_ref_str = 'DmgrJob.Questions["FirstSecondBank"].Item[0].GV'
+            # why this part ".Item[0]" is necessary?
+            # friendly speaking, I don't know
+            # I think it means that
+            # when the syntax is
+            # ... } fields - ( ...
+            # that "fields -" creates a level that also can be addressed
+            # but that's not an actual variable with a name, so we need to skip it, that's why we just add ".Item[0]", to step over this level
+            # if we try to find its name, it shows category names
             if not mdmitem_unstk_iterlevel:
                 raise Exception('why is that?')
             mdmitem_processed = mdmitem_unstk_iterlevel
@@ -296,6 +308,7 @@ def generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, s
                 elif not mdmitem_processed.Name:
                     continue
                 elif '@class' in mdmitem_processed.Name:
+                    # see explanation for that ".Item[0]" above - that's actually that level that we need to step over
                     continue
                 field_name = mdmitem_processed.Name
                 if mdmitem_processed.ObjectTypeValue==1 or mdmitem_processed.ObjectTypeValue==2:
@@ -317,9 +330,38 @@ def generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, s
                     'lines': result_onjobstart_edits,
                 },
             )
-        result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_categories_containsany( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=mdmitem_unstk_iterlevel.Elements, category_check='cbrand', code_style=code_style_compare ) )
-        result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_categories_containsany( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=mdmitem_unstk_iterlevel.Elements, category_check='cbrand', code_style=code_style ) )
-        result['code'] = result['code'].replace('<<DEFINEDCATEGORIESGLOBALVAR>>',variable_definedcategories_local_name)
+        code_script = result['code']
+        if not re.match(r'\s*\n\s*$',code_script,flags=re.I|re.DOTALL):
+            code_script = code_script + '\n'
+        find_regex_results = re.finditer(re.compile(r'(^|\n)(\s*?)([^\s][^\n]*?)(<<CATEGORIESCHECK>>)([^\n]*?)(\s*?\n)',flags=re.I|re.DOTALL),code_script)
+        find_regex_results =  [m for m in find_regex_results] if find_regex_results else [] # so that I can refer to multiple items of a generator multiple times
+        while len(find_regex_results)>0:
+            repl = find_regex_results[0]
+            # span(1) = prev linebreak
+            # span(2) = indent
+            # span(3) = leading part of "if" statement, not including indent
+            # span(4) = logic expr within "if" statement
+            # span(5) = trailing part of "if" statement
+            # span(6) = trailing linebreak
+            indent = code_script[repl.span(2)[0]:repl.span(2)[1]]
+            part_leading = code_script[:repl.span(2)[0]]
+            part_trailing = code_script[repl.span(6)[1]:]
+            statement_script = code_script[repl.span(3)[0]:repl.span(5)[1]]
+            statement_script_main = statement_script.replace( '<<CATEGORIESCHECK>>', generate_code_categories_containsany( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=mdmitem_unstk_iterlevel.Elements, category_check='cbrand', code_style=code_style ) )
+            if code_style['category_list_style'] == 'definedcategories':
+                statement_script_main = statement_script_main + ' \' warning: this is slow!'
+            statement_script_alt1 = statement_script.replace( '<<CATEGORIESCHECK>>', generate_code_categories_containsany( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=mdmitem_unstk_iterlevel.Elements, category_check='cbrand', code_style=code_style_compare_alt1 ) )
+            if code_style_compare_alt1['category_list_style'] == 'definedcategories':
+                statement_script_alt1 = statement_script_alt1 + ' \' warning: this is slow!'
+            statement_script_alt2 = statement_script.replace( '<<CATEGORIESCHECK>>', generate_code_categories_containsany( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=mdmitem_unstk_iterlevel.Elements, category_check='cbrand', code_style=code_style_compare_alt2 ) )
+            if code_style_compare_alt2['category_list_style'] == 'definedcategories':
+                statement_script_alt2 = statement_script_alt2 + ' \' warning: this is slow!'
+            code_script = part_leading + indent + '\' ' + statement_script_alt2 + '\n' + indent + '\' ' + statement_script_alt1 + '\n' + indent + '' + statement_script_main + '\n' + part_trailing
+            find_regex_results = re.finditer(re.compile(r'(^|\n)(\s*?)([^\s][^\n]*?)(<<CATEGORIESCHECK>>)([^\n]*?)(\s*?\n)',flags=re.I|re.DOTALL),code_script)
+            find_regex_results =  [m for m in find_regex_results] if find_regex_results else [] # so that I can refer to multiple items of a generator multiple times
+        
+        code_script = code_script.replace('<<DEFINEDCATEGORIESGLOBALVAR>>',variable_definedcategories_local_name)
+        result['code'] = code_script
     
     result_edits = prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name )
     yield patch_classes.PatchSectionOnNextCaseInsert(

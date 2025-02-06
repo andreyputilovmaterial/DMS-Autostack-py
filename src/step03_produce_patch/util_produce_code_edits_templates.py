@@ -38,7 +38,6 @@ TEMPLATE_STACK_LOOP = {
         'code': """
 ' <<VAR_LVALUE_NAME>>
 ' from: <<VAR_RVALUE_NAME>>
-'if <<CATEGORIESCHECKEXAMPLE>> then
 if <<CATEGORIESCHECK>> then
     <<RECURSIVE>>
     ' {@}
@@ -52,7 +51,6 @@ TEMPLATE_STACK_CATEGORICALYN = {
         'code': """
 ' <<VAR_LVALUE_NAME>>
 ' from: <<VAR_RVALUE_NAME>>
-'if <<CATEGORIESCHECKEXAMPLE>> then
 if <<CATEGORIESCHECK>> then
     <<VAR_LVALUE_PATH>><<VAR_LVALUE_NAME>> = iif( <<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>> is null, null, iif( <<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>=*cbrand, {Yes}, {No} ) )
 end if
