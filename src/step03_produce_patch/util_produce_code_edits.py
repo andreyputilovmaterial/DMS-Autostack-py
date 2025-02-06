@@ -7,12 +7,18 @@ import re
 if __name__ == '__main__':
     # run as a program
     import patch_classes
+    import util_vars
+    import util_produce_code_edits_templates as templates
 elif '.' in __name__:
     # package
     from . import patch_classes
+    from . import util_vars
+    from . import util_produce_code_edits_templates as templates
 else:
     # included with no parent package
     import patch_classes
+    import util_vars
+    import util_produce_code_edits_templates as templates
 
 
 
@@ -64,7 +70,20 @@ def add_indent(s,indent):
         s = '\n'.join(s)
     return s
 
+def make_local_var_name(path,field_name):
+    txt =  util_vars.trim_dots( '{path}.{field_name}'.format(path=path,field_name=field_name) )
+    txt = txt.replace('.','_')
+    return txt
 
+def find_mdmparent(mdmitem):
+    parent = mdmitem.Parent
+    if parent:
+        if '@class' in parent.Name:
+            return find_mdmparent(parent)
+        else:
+            return parent
+    else:
+        raise Exception('failed to find parent')
 
 
 
@@ -135,25 +154,43 @@ def generate_recursive_onnextcase_code(mdmitem_stk,mdmitem_ref):
 
 def generate_code_categories_containsany( variable_with_categories_name, categories_iterating_over, category_check, code_style={} ):
     
-    class Cat:
-        # the only goal is to provide conversion to str method
-        # so that we don't care if we pass mdm categories, dict with 'name' attribute, or just categories as strings
-        # maybe having a class looked more aestethically appealing to me
-        # but this could have been just a function
-        def __init__(self,o):
-            self.o = o
-        def __str__(self):
-            if isinstance(self.o,str):
-                return '{s}'.format(s=self.o)
-            elif isinstance(self.o,dict):
-                return '{s}'.format(s=self.o['name'])
-            # elif isinstance(self.o,win32com.client.CDispatch):
-            # I don't want to have unnecessary dependency in this file just to check if a category is an mdm category
-            # I can just check against a class name as a string
-            elif 'win32com.client.CDispatch' in '{cl}'.format(cl=self.o.__class__):
-                return '{s}'.format(s=self.o.Name)
+    # class Cat:
+    #     # the only goal is to provide conversion to str method
+    #     # so that we don't care if we pass mdm categories, dict with 'name' attribute, or just categories as strings
+    #     # maybe having a class looked more aestethically appealing to me
+    #     # but this could have been just a function
+    #     def __init__(self,o):
+    #         self.o = o
+    #     def __str__(self):
+    #         if isinstance(self.o,str):
+    #             return '{s}'.format(s=self.o)
+    #         elif isinstance(self.o,dict):
+    #             return '{s}'.format(s=self.o['name'])
+    #         # elif isinstance(self.o,win32com.client.CDispatch):
+    #         # I don't want to have unnecessary dependency in this file just to check if a category is an mdm category
+    #         # I can just check against a class name as a string
+    #         elif 'win32com.client.CDispatch' in '{cl}'.format(cl=self.o.__class__):
+    #             return '{s}'.format(s=self.o.Name)
+    #         else:
+    #             return '{s}'.format(s=self.o)
+
+    def iter_cat_names(mdmelements):
+        assert 'win32com.client.CDispatch' in '{cl}'.format(cl=mdmelements.__class__), 'generate_code_categories_containsany: iterating over categories_iterating_over: categories should be of IElements interface'
+        for mdmcat in mdmelements:
+            if mdmcat.IsReference:
+                # raise Exception('oh no shared list')
+                shared_list_name = mdmcat.ReferenceName
+                shared_list_name = re.sub(r'[\^/\\\.\{\}#\s]','',shared_list_name,flags=re.I|re.DOTALL)
+                assert re.match(r'^\w+$',shared_list_name,flags=re.I|re.DOTALL), 'generate_code_categories_containsany: iter_cat_names: trying to collect categories and iterate over mdm elements, and trying to refer to a shared list, and can\'t extract proper name, bad characters still in name: {s}'.format(s=mdmcat.ReferenceName)
+                mdmsharedlist = mdmcat.Document.Types[shared_list_name]
+                for child in iter_cat_names(mdmsharedlist):
+                    yield child
+            elif mdmcat.Type==0:
+                yield mdmcat.Name
             else:
-                return '{s}'.format(s=self.o)
+                for child in iter_cat_names(mdmcat):
+                    yield child
+
     
     assert categories_iterating_over is not None, 'warning: generate_code_categories_containsany: categories_iterating_over is None'
 
@@ -175,9 +212,9 @@ def generate_code_categories_containsany( variable_with_categories_name, categor
     if code_style_category_list_style=='definedcategories':
         result = result.replace('{<<CATLIST>>}','<<VARNAME>>.DefinedCategories()')
     elif code_style_category_list_style=='explicitcatlist':
-        result = result.replace('<<CATLIST>>',','.join(['{s}'.format(s=Cat(cat)) for cat in categories_iterating_over]))
+        result = result.replace('<<CATLIST>>',','.join([cat_name for cat_name in iter_cat_names(categories_iterating_over)]))
     elif code_style_category_list_style=='globaldmgrvar':
-        result = result.replace('{<<CATLIST>>}','dmgrGlobal.DefinedCategories_<<VARNAME>>')
+        result = result.replace('{<<CATLIST>>}','dmgrGlobal.<<DEFINEDCATEGORIESGLOBALVAR>>')
         # raise ValueError('generating code with dmgrGlobal - not implemented yet (it is more complicated than it\'s looking)')
     else:
         raise ValueError('generate_code_categories_containsany: unrecognized code_style_category_list_style: {s}'.format(s=code_style_category_list_style))
@@ -189,155 +226,101 @@ def generate_code_categories_containsany( variable_with_categories_name, categor
 
 
 
-def generate_patches_outerstkloop_walkthrough( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, categories_iterating_over ):
-    TEMPLATE = {
-        'variable_lvalue_path': 'iter_stk.',
-        'variable_rvalue_path': '',
-        'code': """
-dim brand, cbrand, iter_stk
+def generate_patches_outerstkloop_walkthrough( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name ):
+    template = templates.TEMPLATE_OUTERSTK_LOOP_CODE
+    for chunk in generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel=mdmitem_unstk ):
+        yield chunk
 
-' <<VAR_LVALUE_NAME>>
-for each brand in <<VAR_LVALUE_NAME>>.categories
-cbrand = ccategorical(brand)
-    ' ADD YOUR EXPRESSION HERE
-    ' if DV_BrandAssigned=*cbrand then
-    if True then
-    'with <<VAR_LVALUE_NAME>>[cbrand]
-    set iter_stk = <<VAR_LVALUE_PATH>><<VAR_LVALUE_NAME>>[cbrand]
-        
-        ' STK_ID
-        iter_stk.STK_ID = ctext(brand.name)+"_"+ctext(Respondent.ID)
-        
-        ' STK_Iteration
-        iter_stk.STK_Iteration = cbrand
-        
-        ' {@}
-        
-    'end with
-    end if
-next
-set iter_stk = null
-"""
-    }
-    assert stk_variable_path=='', 'generate_patches_outerstkloop_walkthrough, stk_variable_path should be root path, check failed ({s})'.format(s=stk_variable_path)
-    result = {**TEMPLATE} # copy, not modify
-    result_edits = prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name )
-    yield patch_classes.PatchSectionOnNextCaseInsert(
-        position = patch_classes.Position(stk_variable_path), # root
-        comment = {
-            'description': 'top level stacking loop',
-            'target': '401_PreStack_script',
-        },
-        payload = {
-            'variable': stk_variable_name,
-            'lines': result_edits,
-        },
-    )
+def generate_patches_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name ):
+    template = templates.TEMPLATE_STACK_LOOP
+    for chunk in generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel=find_mdmparent(mdmitem_unstk) ):
+        yield chunk
 
-# def generate_patches_loop_unstack_simple( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, unstk_variable_fieldname, categories_iterating_over ):
-#     TEMPLATE = {
-#         'variable_lvalue_path': '<<VAR_LVALUE_PATH>><<VAR_LVALUE_NAME>>.', # not sure we need it, we don't expect that we need to process subfields separately; we need to find some really complicated tests to check it, where we stack at 2 different levels - I can imaging this could happen, let's find some tests and see
-#         'variable_rvalue_path': '<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>[cbrand].<<VAR_RVALUE_FIELDNAME>>.', # not sure we need it, we don't expect that we need to process subfields separately; we need to find some really complicated tests to check it, where we stack at 2 different levels - I can imaging this could happen, let's find some tests and see
-#         'code': """
-# ' <<VAR_LVALUE_NAME>>
-# ' from: <<VAR_RVALUE_NAME>>
-# 'if <<CATEGORIESCHECKEXAMPLE>> then
-# if <<CATEGORIESCHECK>> then
-#     <<VAR_LVALUE_PATH>><<VAR_LVALUE_NAME>> = <<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>[cbrand].<<VAR_RVALUE_FIELDNAME>>
-# end if
-# ' {@}
-# """
-#     }
-#     result = {**TEMPLATE} # copy, not modify
-#     code_style_configletter1 = CONFIG_CHECK_CATEGORIES_STYLE[0] if len(CONFIG_CHECK_CATEGORIES_STYLE)>=2 else None
-#     code_style_configletter2 = CONFIG_CHECK_CATEGORIES_STYLE[1] if len(CONFIG_CHECK_CATEGORIES_STYLE)>=2 else None
-#     code_style = {
-#         'assignment_op': 'operator' if code_style_configletter1=='O' else ( 'containsany' if code_style_configletter1=='C' else '???' ),
-#         'category_list_style': 'definedcategories' if code_style_configletter2=='D' else ( 'explicitcatlist' if code_style_configletter2=='E' else ( 'globaldmgrvar' if code_style_configletter2=='G' else '???' ) ),
-#     }
-#     code_style_compare = {
-#         **code_style,
-#         'category_list_style': 'definedcategories' if code_style['category_list_style']=='explicitcatlist' else 'explicitcatlist',
-#     }
-#     if ( '<<CATEGORIESCHECK>>' in result['code'] or '<<CATEGORIESCHECKEXAMPLE>>' in result['code'] ) and ( code_style_configletter2=='G' ):
-#         result_onjobstart_edits = '\t\' TODO: produce code for <<VARNAME>>...\n'
-#         yield patch_classes.PatchSectionOtherInsert(
-#             position = patch_classes.Position(-1),
-#             section_name = 'OnJobStart',
-#             comment = {
-#                 'source_from': unstk_variable_name,
-#                 'source_for': stk_variable_name,
-#                 'target': '401_PreStack_script',
-#             },
-#             payload = {
-#                 'variable': stk_variable_name,
-#                 'lines': result_onjobstart_edits,
-#             },
-#         )
-#     result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_categories_containsany( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
-#     result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_categories_containsany( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style ) )
-#     result_edits = prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name, unstk_variable_fieldname )
-#     yield patch_classes.PatchSectionOnNextCaseInsert(
-#         position = patch_classes.Position(stk_variable_path),
-#         comment = {
-#             'source_from': unstk_variable_name,
-#             'target': '401_PreStack_script',
-#         },
-#         payload = {
-#             'variable': stk_variable_name,
-#             'lines': result_edits,
-#         },
-#     )
+def generate_patches_unstack_categorical_yn( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name ):
+    template = templates.TEMPLATE_STACK_CATEGORICALYN
+    for chunk in generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel=mdmitem_unstk ):
+        yield chunk
 
+def generate_patches_loop_walkthrough( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name ):
+    template = templates.TEMPLATE_LOOP_PARENT
+    for chunk in generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel=mdmitem_unstk ):
+        yield chunk
 
-def generate_patches_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, categories_iterating_over ):
-    TEMPLATE = {
-        'variable_lvalue_path': '<<VAR_LVALUE_PATH>><<VAR_LVALUE_NAME>>.', # we need it
-        'variable_rvalue_path': '<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>[cbrand].', # we need it; don't add variable name - it is already generated with recursive code
-        'code': """
-' <<VAR_LVALUE_NAME>>
-' from: <<VAR_RVALUE_NAME>>
-'if <<CATEGORIESCHECKEXAMPLE>> then
-if <<CATEGORIESCHECK>> then
-    ' {@}
-end if
-"""
-    }
-    result = {**TEMPLATE} # copy, not modify
-    is_simple = mdmitem_stk.ObjectTypeValue==0
-    result_add = generate_recursive_onnextcase_code(mdmitem_stk,mdmitem_unstk)
-    result_add = add_indent('\n'+trim_lines(result_add)+'\n','\t')
-    if is_simple:
-        # maybe we don't need unnecessary line breaks and comments for just "GV"
-        result_add = re.sub(r'(^|\n)((?:\s*?(?:\'[^\n]*?)?\s*?\n)*)',lambda m: m[1],result_add,flags=re.I|re.DOTALL)
-    code_style_configletter1 = CONFIG_CHECK_CATEGORIES_STYLE[0] if len(CONFIG_CHECK_CATEGORIES_STYLE)>=2 else None
-    code_style_configletter2 = CONFIG_CHECK_CATEGORIES_STYLE[1] if len(CONFIG_CHECK_CATEGORIES_STYLE)>=2 else None
-    code_style = {
-        'assignment_op': 'operator' if code_style_configletter1=='O' else ( 'containsany' if code_style_configletter1=='C' else '???' ),
-        'category_list_style': 'definedcategories' if code_style_configletter2=='D' else ( 'explicitcatlist' if code_style_configletter2=='E' else ( 'globaldmgrvar' if code_style_configletter2=='G' else '???' ) ),
-    }
-    code_style_compare = {
-        **code_style,
-        'category_list_style': 'definedcategories' if code_style['category_list_style']=='explicitcatlist' else 'explicitcatlist',
-    }
-    if ( '<<CATEGORIESCHECK>>' in result['code'] or '<<CATEGORIESCHECKEXAMPLE>>' in result['code'] ) and ( code_style_configletter2=='G' ):
-        result_onjobstart_edits = '\t\' TODO: produce code for <<VARNAME>>...\n'
-        yield patch_classes.PatchSectionOtherInsert(
-            position = patch_classes.Position(-1),
-            section_name = 'OnJobStart',
-            comment = {
-                'source_from': unstk_variable_name,
-                'source_for': stk_variable_name,
-                'target': '401_PreStack_script',
-            },
-            payload = {
-                'variable': stk_variable_name,
-                'lines': result_onjobstart_edits,
-            },
-        )
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_categories_containsany( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_categories_containsany( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style ) )
-    result['code'] = re.sub(r'^(.*?\n)(\s*?\'\s*?\{@\}[^\n]*?\n)(.*?)$',lambda m: '{code_begin}{code_add}{code_end}'.format(code_begin=m[1],code_end=m[3],code_add=result_add),result['code'],flags=re.I|re.DOTALL)
+def generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel ):
+
+    result = {**template} # copy, not modify
+
+    is_recursive = '<<RECURSIVE>>' in result['code']
+    is_iterative = '<<CATEGORIESCHECK>>' in result['code'] or '<<CATEGORIESCHECKEXAMPLE>>' in result['code']
+
+    if is_recursive:
+        is_simple = mdmitem_stk.ObjectTypeValue==0
+        result_add = generate_recursive_onnextcase_code(mdmitem_stk,mdmitem_unstk)
+        result_add = '\n'+trim_lines(result_add)+'\n'
+        if is_simple:
+            # maybe we don't need unnecessary line breaks and comments for just "GV"
+            result_add = re.sub(r'(^|\n)((?:\s*?(?:\'[^\n]*?)?\s*?\n)*)',lambda m: m[1],result_add,flags=re.I|re.DOTALL)
+        result['code'] = re.sub(r'^(.*?\n)((\s*?)<<RECURSIVE>>[^\n]*?\n)(.*?)$',lambda m: '{code_begin}{code_add}{code_end}'.format(code_begin=m[1],code_end=m[4],code_add=add_indent(result_add,indent=m[3])),result['code'],flags=re.I|re.DOTALL)
+    
+    if is_iterative:
+        
+        variable_local_name = make_local_var_name(path=stk_variable_path,field_name=stk_variable_name)
+        variable_definedcategories_local_name = 'DefinedCategories_{n}'.format(n=variable_local_name)
+
+        code_style_configletter1 = CONFIG_CHECK_CATEGORIES_STYLE[0] if len(CONFIG_CHECK_CATEGORIES_STYLE)>=2 else None
+        code_style_configletter2 = CONFIG_CHECK_CATEGORIES_STYLE[1] if len(CONFIG_CHECK_CATEGORIES_STYLE)>=2 else None
+        code_style = {
+            'assignment_op': 'operator' if code_style_configletter1=='O' else ( 'containsany' if code_style_configletter1=='C' else '???' ),
+            'category_list_style': 'definedcategories' if code_style_configletter2=='D' else ( 'explicitcatlist' if code_style_configletter2=='E' else ( 'globaldmgrvar' if code_style_configletter2=='G' else '???' ) ),
+        }
+        code_style_compare = {
+            **code_style,
+            'category_list_style': 'definedcategories' if code_style['category_list_style']=='explicitcatlist' else 'explicitcatlist',
+        }
+        if code_style_configletter2=='G':
+            # variable_ref_str = 'DmgrJob.Questions["FirstSecondBank"].Item[0].GV'
+            if not mdmitem_unstk_iterlevel:
+                raise Exception('why is that?')
+            mdmitem_processed = mdmitem_unstk_iterlevel
+            variable_ref_str = ''
+            variable_definedcategories_local_name = ''
+            field_name = mdmitem_processed.Name
+            while True:
+                if field_name:
+                    variable_ref_str = '.' + field_name + variable_ref_str
+                    variable_definedcategories_local_name = '_' + field_name + variable_definedcategories_local_name
+                mdmitem_processed = mdmitem_processed.Parent
+                field_name = None
+                if not mdmitem_processed:
+                    break
+                elif not mdmitem_processed.Name:
+                    continue
+                elif '@class' in mdmitem_processed.Name:
+                    continue
+                field_name = mdmitem_processed.Name
+                if mdmitem_processed.ObjectTypeValue==1 or mdmitem_processed.ObjectTypeValue==2:
+                    variable_ref_str = '.' + 'Item[0]' + variable_ref_str
+            variable_ref_str = 'DmgrJob.Questions' + variable_ref_str
+            variable_definedcategories_local_name = 'DefinedCategories' + variable_definedcategories_local_name
+
+            result_onjobstart_edits = '\t\' <<VARNAME>>...\n\tDmgrGlobal.Add("<<VARNAME>>")\n\tDmgrGlobal.<<VARNAME>> = <<VARREF>>.DefinedCategories()\n'.replace('<<VARNAME>>',variable_definedcategories_local_name).replace('<<VARREF>>',variable_ref_str)
+            yield patch_classes.PatchSectionOtherInsert(
+                position = patch_classes.Position(-1),
+                section_name = 'OnJobStart',
+                comment = {
+                    'source_from': unstk_variable_name,
+                    'source_for': stk_variable_name,
+                    'target': '401_PreStack_script',
+                },
+                payload = {
+                    'variable': stk_variable_name,
+                    'lines': result_onjobstart_edits,
+                },
+            )
+        result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_categories_containsany( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=mdmitem_unstk_iterlevel.Elements, category_check='cbrand', code_style=code_style_compare ) )
+        result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_categories_containsany( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=mdmitem_unstk_iterlevel.Elements, category_check='cbrand', code_style=code_style ) )
+        result['code'] = result['code'].replace('<<DEFINEDCATEGORIESGLOBALVAR>>',variable_definedcategories_local_name)
+    
     result_edits = prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name )
     yield patch_classes.PatchSectionOnNextCaseInsert(
         position = patch_classes.Position(stk_variable_path),
@@ -350,91 +333,3 @@ end if
             'lines': result_edits,
         },
     )
-
-def generate_patches_unstack_categorical_yn( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, categories_iterating_over ):
-    TEMPLATE = {
-        'variable_lvalue_path': '<<VAR_LVALUE_PATH>><<VAR_LVALUE_NAME>>', # we definitely not need it and it will not work, it will break, and that's some good news, we'll see that something is off
-        'variable_rvalue_path': '<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', # we definitely not need it and it will not work, it will break, and that's some good news, we'll see that something is off
-        'code': """
-' <<VAR_LVALUE_NAME>>
-' from: <<VAR_RVALUE_NAME>>
-'if <<CATEGORIESCHECKEXAMPLE>> then
-if <<CATEGORIESCHECK>> then
-    <<VAR_LVALUE_PATH>><<VAR_LVALUE_NAME>> = iif( <<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>> is null, null, iif( <<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>=*cbrand, {Yes}, {No} ) )
-end if
-' {@}
-"""
-    }
-    result = {**TEMPLATE} # copy, not modify
-    code_style_configletter1 = CONFIG_CHECK_CATEGORIES_STYLE[0] if len(CONFIG_CHECK_CATEGORIES_STYLE)>=2 else None
-    code_style_configletter2 = CONFIG_CHECK_CATEGORIES_STYLE[1] if len(CONFIG_CHECK_CATEGORIES_STYLE)>=2 else None
-    code_style = {
-        'assignment_op': 'operator' if code_style_configletter1=='O' else ( 'containsany' if code_style_configletter1=='C' else '???' ),
-        'category_list_style': 'definedcategories' if code_style_configletter2=='D' else ( 'explicitcatlist' if code_style_configletter2=='E' else ( 'globaldmgrvar' if code_style_configletter2=='G' else '???' ) ),
-    }
-    code_style_compare = {
-        **code_style,
-        'category_list_style': 'definedcategories' if code_style['category_list_style']=='explicitcatlist' else 'explicitcatlist',
-    }
-    if ( '<<CATEGORIESCHECK>>' in result['code'] or '<<CATEGORIESCHECKEXAMPLE>>' in result['code'] ) and ( code_style_configletter2=='G' ):
-        result_onjobstart_edits = '\t\' TODO: produce code for <<VARNAME>>...\n'
-        yield patch_classes.PatchSectionOtherInsert(
-            position = patch_classes.Position(-1),
-            section_name = 'OnJobStart',
-            comment = {
-                'source_from': unstk_variable_name,
-                'source_for': stk_variable_name,
-                'target': '401_PreStack_script',
-            },
-            payload = {
-                'variable': stk_variable_name,
-                'lines': result_onjobstart_edits,
-            },
-        )
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECKEXAMPLE>>', generate_code_categories_containsany( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style_compare ) )
-    result['code'] = result['code'].replace( '<<CATEGORIESCHECK>>', generate_code_categories_containsany( variable_with_categories_name='<<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>', categories_iterating_over=categories_iterating_over, category_check='cbrand', code_style=code_style ) )
-    result_edits = prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name )
-    yield patch_classes.PatchSectionOnNextCaseInsert(
-        position = patch_classes.Position(stk_variable_path),
-        comment = {
-            'source_from': unstk_variable_name,
-            'target': '401_PreStack_script',
-        },
-        payload = {
-            'variable': stk_variable_name,
-            'lines': result_edits,
-        },
-    )
-
-def generate_patches_loop_walkthrough( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, categories_iterating_over ):
-    TEMPLATE = {
-        'variable_lvalue_path': 'iter_stk_<<VAR_LVALUE_NAME>>.', # we certainly need
-        'variable_rvalue_path': 'iter_<<VAR_RVALUE_NAME>>.', # we certainly need it
-        'code': """
-' <<VAR_LVALUE_NAME>>
-' from: <<VAR_RVALUE_NAME>>
-' process everything within this loop
-dim cat_stk_<<VAR_LVALUE_NAME>>, iter_stk_<<VAR_LVALUE_NAME>>, iter_<<VAR_RVALUE_NAME>>
-for each cat_stk_<<VAR_LVALUE_NAME>> in <<VAR_LVALUE_PATH>><<VAR_LVALUE_NAME>>.Categories
-    set iter_stk_<<VAR_LVALUE_NAME>> = <<VAR_LVALUE_PATH>><<VAR_LVALUE_NAME>>[cat_stk_<<VAR_LVALUE_NAME>>.name]
-    set iter_<<VAR_RVALUE_NAME>> = <<VAR_RVALUE_PATH>><<VAR_RVALUE_NAME>>[cat_stk_<<VAR_LVALUE_NAME>>.name]
-
-    ' {@}
-
-next
-"""
-    }
-    result = {**TEMPLATE} # copy, not modify
-    result_edits = prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name )
-    yield patch_classes.PatchSectionOnNextCaseInsert(
-        position = patch_classes.Position(stk_variable_path),
-        comment = {
-            'source_from': unstk_variable_name,
-            'target': '401_PreStack_script',
-        },
-        payload = {
-            'variable': stk_variable_name,
-            'lines': result_edits,
-        },
-    )
-

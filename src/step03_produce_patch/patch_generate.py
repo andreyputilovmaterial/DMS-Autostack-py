@@ -9,22 +9,23 @@ if __name__ == '__main__':
     import patch_classes
     import util_vars
     import utility_performance_monitor
-    import util_produce_code_mdata as metadata_functions
-    import util_produce_code_edits as onnextcase_functions
+    import util_produce_code_mdata as mdata_functions
+    import util_produce_code_edits as onc_functions # "onc" stands for "OnNextCase" event
 elif '.' in __name__:
     # package
     from . import patch_classes
     from . import util_vars
     from . import utility_performance_monitor
-    from . import util_produce_code_mdata as metadata_functions
-    from . import util_produce_code_edits as onnextcase_functions
+    from . import util_produce_code_mdata as mdata_functions
+    from . import util_produce_code_edits as onc_functions # "onc" stands for "OnNextCase" event
 else:
     # included with no parent package
     import patch_classes
     import util_vars
     import utility_performance_monitor
-    import util_produce_code_mdata as metadata_functions
-    import util_produce_code_edits as onnextcase_functions
+    import util_produce_code_mdata as mdata_functions
+    import util_produce_code_edits as onc_functions # "onc" stands for "OnNextCase" event
+
 
 
 
@@ -58,7 +59,7 @@ else:
 # and make mdm scripts generation faster,
 # because we are re-creating mdmdoc every time we are processing a new item (should we?)
 # and adding shared lists adds significant time to generating results
-CONFIG_BRING_SHAREDLISTS_TO_NEW_MDMDOC_TO_ADDRESS_CAT_UNRESOLVEDREFERENCES = False
+CONFIG_BRING_SHAREDLISTS_TO_NEW_MDMDOC_TO_ADDRESS_CAT_UNRESOLVEDREFERENCES = True
 
 
 
@@ -93,7 +94,7 @@ def should_exclude_field(mdmfield,mdmsiblings):
     def check_is_assigner_qta(mdmfield,mdmsiblings):
         def get_properties(mdmitem):
             # TODO: should we care about context?
-            # I think the default context here is Analysis, that's what we set globally in init_mdd_doc_from_script()
+            # I think the default context here is Analysis, that's what we set globally when we create mdmdoc instance
             # "assginertext" (our prop of interest) is probably added in "Question" context
             # but I think (I hope) it will be listed anyway
             # anyway, we probably don't need it at all
@@ -216,7 +217,7 @@ def choose_loop_name(variable_records,name_to_start_with):
 
 
 
-def generate_stkcategories_metadata(key_categories,category_records,mdmdoc):
+def generate_stkcategories_metadata(key_categories,category_records,mdmdoc_stk):
     cat_stk_data = []
     performance_counter = iter(utility_performance_monitor.PerformanceMonitor(config={
         'total_records': len(key_categories),
@@ -304,14 +305,15 @@ def generate_stkcategories_metadata(key_categories,category_records,mdmdoc):
             'questions_used': cat_label_data['questions_used'], # why storing this data, I don't use it
             'properties': { 'Value': cat_analysisvalue_data } if cat_analysisvalue_data else {},
         })
-    return [ metadata_functions.generate_category_metadata(cat['name'],cat['label'],cat['properties'],mdmdoc) for cat in cat_stk_data ]
+    return [ mdata_functions.create_mdmcategory(cat['name'],cat['label'],cat['properties'],mdmdoc_stk) for cat in cat_stk_data ]
 
 
-def process_outerloop(name,key_categories,category_records,mdmdoc,get_list_existing_items,config):
+def process_outerloop(name,key_categories,category_records,mdmdoc_stk,get_list_existing_items,config):
     print_log_processing('categories')
-    mdmcategories = generate_stkcategories_metadata(key_categories,category_records,mdmdoc)
+    mdmcategories = generate_stkcategories_metadata(key_categories,category_records,mdmdoc_stk)
     print_log_processing('top level stacking loop')
-    result_metadata = metadata_functions.generate_scripts_outerstkloop( name, mdmcategories )
+    mdmitem_stk = mdata_functions.create_mdmvariable_outerstkloop( name, mdmcategories, mdmdoc_stk )
+    result_metadata = mdmitem_stk.Script
     # add defines
     assert re.match(r'^\w+$',name,flags=re.I), 'adding #define STKLoop: STKLoop name does not pass validation ({s})'.format(s=name)
     yield patch_classes.PatchInsert(
@@ -372,17 +374,17 @@ def process_outerloop(name,key_categories,category_records,mdmdoc,get_list_exist
             'attributes': { 'object_type_value': 1, 'label': None, 'type': 'array' },
         },
     )
-    for chunk in onnextcase_functions.generate_patches_outerstkloop_walkthrough( None, None, stk_variable_name=name, stk_variable_path='', unstk_variable_name='', categories_iterating_over=None ):
+    for chunk in onc_functions.generate_patches_outerstkloop_walkthrough( None, None, stk_variable_name=name, stk_variable_path='', unstk_variable_name='' ):
         yield chunk
     
 
-def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field_name_unstk,path_unstk,variable_record,variable_records,mdmdoc,get_list_existing_items,config):
-    mdmitem_stk = metadata_functions.sync_labels_and_key_spss_properties_from_mddreport(mdmitem_stk,variable_record)
-    mdmitem_stk = metadata_functions.generate_updated_metadata_update_all_in_batch(mdmitem_stk,variable_record,mdmdoc)
+def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field_name_unstk,path_unstk,variable_record,variable_records,mdmdoc_stk,get_list_existing_items,config):
+    mdmitem_stk = mdata_functions.sync_labels_and_key_spss_properties_from_mddreport(mdmitem_stk,variable_record)
+    mdmitem_stk = mdata_functions.update_mdmvariable_attributes(mdmitem_stk,variable_record)
     _, loop_name_unstk = util_vars.extract_field_name(path_unstk)
-    loop_variable_unstk = variable_records[util_vars.sanitize_item_name(path_unstk)]
+    # loop_variable_unstk = variable_records[util_vars.sanitize_item_name(path_unstk)]
 
-    for result_patch_parent in process_every_parent(path_stk,variable_records,mdmdoc,get_list_existing_items,config):
+    for result_patch_parent in process_every_parent(path_stk,variable_records,mdmdoc_stk,get_list_existing_items,config):
         yield result_patch_parent
 
     # done with parent levels, add record for processing the variable that is stacked
@@ -403,7 +405,7 @@ def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field
     if False:
         # # it means it's a regular plain variable
         # # we can use direct assignment
-        # for chunk in onnextcase_functions.generate_patches_loop_unstack_simple( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, stk_variable_path=path_stk, unstk_variable_name=loop_name_unstk, unstk_variable_fieldname=field_name_unstk, categories_iterating_over=loop_variable_unstk['categories'] ):
+        # for chunk in onc_functions.generate_patches_loop_unstack_simple( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, stk_variable_path=path_stk, unstk_variable_name=loop_name_unstk, unstk_variable_fieldname=field_name_unstk, categories_iterating_over=loop_variable_unstk['categories'] ):
         #     yield chunk
         pass
     else:
@@ -415,7 +417,7 @@ def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field
         # anyway, doing euristic analysis is not 100% right, it is not the most performance efficient
         # and stacking is sometimes slow, it can take 8 hours, or more, in some projects, i.e. Disney+&Hulu tracker
         # So I have to generate proper code here iterating over all loops and fields
-        for chunk in onnextcase_functions.generate_patches_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, stk_variable_path=path_stk, unstk_variable_name=loop_name_unstk, categories_iterating_over=loop_variable_unstk['categories'] ):
+        for chunk in onc_functions.generate_patches_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, stk_variable_path=path_stk, unstk_variable_name=loop_name_unstk ):
             yield chunk
         
     count_entries_stk = len( [ item for item in get_list_existing_items() if util_vars.sanitize_item_name(util_vars.trim_dots('{path}.{field_name}'.format(path=path_stk,field_name=field_name_stk)))==util_vars.sanitize_item_name(item) ] )
@@ -426,10 +428,10 @@ def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field
     assert not duplicate_stk
     assert exist_unstk
 
-def process_stack_a_categorical(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field_name_unstk,path_unstk,variable_record,variable_records,mdmdoc,get_list_existing_items,config):
-    mdmitem_stk = metadata_functions.generate_updated_metadata_update_all_in_batch(mdmitem_stk,variable_record,mdmdoc)
+def process_stack_a_categorical(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field_name_unstk,path_unstk,variable_record,variable_records,mdmdoc_stk,get_list_existing_items,config):
+    mdmitem_stk = mdata_functions.update_mdmvariable_attributes(mdmitem_stk,variable_record)
 
-    for result_patch_parent in process_every_parent(path_stk,variable_records,mdmdoc,get_list_existing_items,config):
+    for result_patch_parent in process_every_parent(path_stk,variable_records,mdmdoc_stk,get_list_existing_items,config):
         yield result_patch_parent
 
     # done with parent levels, add record for processing the variable that is stacked
@@ -446,7 +448,7 @@ def process_stack_a_categorical(mdmitem_stk,field_name_stk,path_stk,mdmitem_unst
             'attributes': variable_record['attributes'],
         },
     )
-    for chunk in onnextcase_functions.generate_patches_unstack_categorical_yn( mdmitem_stk, None, stk_variable_name=field_name_stk, stk_variable_path=path_stk, unstk_variable_name=field_name_unstk, categories_iterating_over=variable_record['categories'] ):
+    for chunk in onc_functions.generate_patches_unstack_categorical_yn( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, stk_variable_path=path_stk, unstk_variable_name=field_name_unstk ):
         yield chunk
     
     count_entries_stk = len( [ item for item in get_list_existing_items() if util_vars.sanitize_item_name(util_vars.trim_dots('{path}.{field_name}'.format(path=path_stk,field_name=field_name_stk)))==util_vars.sanitize_item_name(item) ] )
@@ -457,7 +459,7 @@ def process_stack_a_categorical(mdmitem_stk,field_name_stk,path_stk,mdmitem_unst
     assert not duplicate_stk
     assert exist_unstk
 
-def process_every_parent(path_stk,variable_records,mdmdoc,get_list_existing_items,config):
+def process_every_parent(path_stk,variable_records,mdmdoc_stk,get_list_existing_items,config):
     full_path_stk = ''
     full_path_unstk = ''
     parent, rest = util_vars.extract_parent_name(path_stk)
@@ -479,8 +481,8 @@ def process_every_parent(path_stk,variable_records,mdmdoc,get_list_existing_item
         if not exist_parent:
             # create it
             variable_record_unstk = variable_records[util_vars.sanitize_item_name(full_path_unstk)]
-            mdmitem = metadata_functions.generate_updated_metadata_clone_excluding_subfields(current_item_stk_name,variable_record_unstk['scripting'],variable_record_unstk['attributes'],mdmdoc)
-            mdmitem = metadata_functions.sync_labels_and_key_spss_properties_from_mddreport(mdmitem,variable_record_unstk)
+            mdmitem = mdata_functions.create_mdmvariable_clone_excluding_subfields(current_item_stk_name,variable_record_unstk['scripting'],variable_record_unstk['attributes'],mdmdoc_stk)
+            mdmitem = mdata_functions.sync_labels_and_key_spss_properties_from_mddreport(mdmitem,variable_record_unstk)
             result_metadata = mdmitem.Script
             yield patch_classes.PatchSectionMetadataInsert(
                 position = patch_classes.Position(current_item_stk_path),
@@ -494,7 +496,7 @@ def process_every_parent(path_stk,variable_records,mdmdoc,get_list_existing_item
                     'attributes': variable_record_unstk['attributes'],
                 },
             )
-            for chunk in onnextcase_functions.generate_patches_loop_walkthrough( mdmitem, None, stk_variable_name=current_item_stk_name, stk_variable_path=current_item_stk_path, unstk_variable_name=current_item_stk_name, categories_iterating_over=None ):
+            for chunk in onc_functions.generate_patches_loop_walkthrough( mdmitem, None, stk_variable_name=current_item_stk_name, stk_variable_path=current_item_stk_path, unstk_variable_name=current_item_stk_name ):
                 yield chunk
             parent, rest = util_vars.extract_parent_name(rest)
 
@@ -533,14 +535,15 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
     config['loopname'] = stk_loopname
 
     # prepare mdm item that is used for interaction with all mdm interfaces
-    mdmdoc = metadata_functions.init_mdd_doc_from_item_script('')
+    mdmdoc_stk = mdata_functions.create_mdmdoc()
+    mdmdoc_unstk = mdata_functions.create_mdmdoc(variable_records['']['scripting'])
     if CONFIG_BRING_SHAREDLISTS_TO_NEW_MDMDOC_TO_ADDRESS_CAT_UNRESOLVEDREFERENCES:
-        mdmdoc = metadata_functions.mdmdoc_sync_types_definitions(mdmdoc,metadata_functions.init_mdd_doc_from_script(variable_records['']['scripting']))
+        mdmdoc_stk = mdata_functions.mdmdoc_sync_types_definitions(mdmdoc_stk,mdmdoc_unstk)
 
     # go!
 
     # 1. add that global loop
-    for result_patch in process_outerloop(name=stk_loopname,key_categories=variable_specs['categories'],category_records=category_records,mdmdoc=mdmdoc,get_list_existing_items=get_list_existing_items,config=config):
+    for result_patch in process_outerloop(name=stk_loopname,key_categories=variable_specs['categories'],category_records=category_records,mdmdoc_stk=mdmdoc_stk,get_list_existing_items=get_list_existing_items,config=config):
         result_401_402_combined.append(result_patch)
 
     # now process every variable
@@ -558,7 +561,6 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
             # read variable data from variable_specs
             variable_record = variable_records[util_vars.sanitize_item_name(variable_id)]
             variable_record_name = variable_record['name']
-            field_path, field_name = util_vars.extract_field_name(variable_record_name)
             variable_type = util_vars.detect_var_type_by_record(variable_record)
 
             # detect if we should skip
@@ -567,20 +569,30 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
             # not doing it here anymore - we suppose all fitlering is done in step02_guess_vars
             # if a variable is specced for stacking here - our job is to stack it, not to decide that this should be skipped
             
-            # grab scripts
-            if not 'scripting' in variable_record:
-                raise ValueError('Input data does not include "scripting" data, please adjust settings that you use to run mdd_read')
-            variable_scripts = variable_record['scripting']
-
             # processed variable is not always a top level variable
             # maybe we need to process every parent and add metadata for them
             # see process_every_parent within process_stack_a_loop and process_stack_a_categorical
             
             # and now manipulations with MDD
-            mdmdoc = metadata_functions.init_mdd_doc_from_item_script(variable_scripts)
-            if CONFIG_BRING_SHAREDLISTS_TO_NEW_MDMDOC_TO_ADDRESS_CAT_UNRESOLVEDREFERENCES:
-                mdmdoc = metadata_functions.mdmdoc_sync_types_definitions(mdmdoc,metadata_functions.init_mdd_doc_from_script(variable_records['']['scripting']))
-            mdmitem_unstk = mdmdoc.Fields[field_name] # that's top-level!
+            mdmitem_unstk = mdmdoc_unstk
+            item_name, path_rest = util_vars.extract_parent_name(variable_record['name'])
+            path = item_name
+            mdmitem_unstk = mdmitem_unstk.Fields[item_name]
+            while path_rest:
+                item_name, path_rest = util_vars.extract_parent_name(path_rest)
+                path = path + '.' + item_name
+                try:
+                    item_attrs = variable_records[util_vars.sanitize_item_name(path)]['attributes']
+                except KeyError as e:
+                    raise KeyError('Trying to find unstacked variable matching "{name}": not found ({e})'.format(name=path,e=e))
+                item_is_helperfield = 'is_helper_field' in item_attrs and re.match(r'^\s*?true\s*?$',item_attrs['is_helper_field'],flags=re.I|re.DOTALL)
+                if not item_is_helperfield:
+                    mdmitem_unstk = mdmitem_unstk.Fields[item_name]
+                else:
+                    mdmitem_unstk = mdmitem_unstk.HelperFields[item_name]
+            mdmitem_stk = None # none yet, we'll create it depending on its type, if it should be a stacked loop or y/n categorical
+
+            
             
             if variable_type=='loop':
                 
@@ -595,13 +607,13 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
                         full_name_unstk = '{path}.{field}'.format(path=variable_record_name,field=mdmitem_loop_field.Name)
                         path_unstk, field_name_unstk = util_vars.extract_field_name(full_name_unstk)
                         variable_record_unstk = variable_records[util_vars.sanitize_item_name(full_name_unstk)]
-                        mdmitem_unstk = metadata_functions.generate_metadata_from_scripts(field_name_unstk,variable_record_unstk['scripting'],variable_record_unstk['attributes'],mdmdoc)
+                        mdmitem_inner_unstk = mdmitem_outer_unstk.Fields[field_name_unstk]
                         
                         outer_path, _ = util_vars.extract_field_name(variable_record['name'])
                         full_name_stk = '{loopname}{path}.{field_name}'.format(loopname=stk_loopname,path='.{path}'.format(path=outer_path) if outer_path else '',field_name=mdmitem_loop_field.Name)
                         path_stk, _ = util_vars.extract_field_name(full_name_stk)
                         
-                        mdmitem_stk = metadata_functions.generate_metadata_from_scripts(mdmitem_loop_field.Name,mdmitem_loop_field.Script,variable_record_unstk['attributes'],mdmdoc)
+                        mdmitem_stk = mdata_functions.create_mdmvariable(mdmitem_loop_field.Name,mdmitem_loop_field.Script,variable_record_unstk['attributes'],mdmdoc_stk)
                         is_improper_name = check_if_improper_name(mdmitem_loop_field.Name)
                         field_name_stk = mdmitem_loop_field.Name
                         if is_a_single_item_within_loop:
@@ -616,7 +628,7 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
                         else:
                             field_name_stk = '{part_parent}_{part_field}'.format(part_parent=mdmitem_outer_unstk.Name,part_field=mdmitem_stk.Name)
                         if not (field_name_stk == mdmitem_stk.Name):
-                            mdmitem_stk = metadata_functions.generate_updated_metadata_rename(mdmitem_stk,field_name_stk,mdmdoc)
+                            mdmitem_stk = mdata_functions.rename_mdmvariable(mdmitem_stk,field_name_stk)
                         
                         # combine from variable_record_unstk and variable_record
                         # somehow labels disappear when switching from Question context to Analysis context
@@ -635,7 +647,7 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
                                 variable_record_unstk_final['properties'][prop_name] = prop_value
                         variable_record_unstk_final['attributes'] = {**variable_record_unstk['attributes']}
                         variable_record_unstk_final['attributes']['label'] = variable_record_unstk_final['label']
-                        variable_record_unstk_final['attributes']['object_type_value'] = mdmitem_unstk.ObjectTypeValue
+                        variable_record_unstk_final['attributes']['object_type_value'] = mdmitem_inner_unstk.ObjectTypeValue
                         if variable_record_unstk_final['attributes']['object_type_value']==0:
                             variable_record_unstk_final['attributes']['data_type'] = mdmitem_stk.DataType
                         if 'is_grid' in variable_record_unstk_final['attributes']:
@@ -643,7 +655,7 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
                                 if mdmitem_stk.Fields.Count>1:
                                     variable_record_unstk_final['attributes']['is_grid'] = 'false'
 
-                        for result_patch in process_stack_a_loop(mdmitem_stk,mdmitem_stk.Name,path_stk,mdmitem_unstk,field_name_unstk,path_unstk,variable_record_unstk_final,variable_records,mdmdoc,get_list_existing_items,config):
+                        for result_patch in process_stack_a_loop(mdmitem_stk,mdmitem_stk.Name,path_stk,mdmitem_inner_unstk,field_name_unstk,path_unstk,variable_record_unstk_final,variable_records,mdmdoc_stk,get_list_existing_items,config):
                             result_401_402_combined.append(result_patch)
 
             elif variable_type=='categorical':
@@ -653,9 +665,9 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
                 full_name_stk = util_vars.trim_dots('{stk_loopname}.{path_nested}'.format(stk_loopname=stk_loopname,path_nested=util_vars.trim_dots('{path}.{field_name}'.format(path=path_unstk,field_name=field_name_unstk))))
                 path_stk, field_name_stk = util_vars.extract_field_name(full_name_stk)
 
-                mdmitem_stk = metadata_functions.generate_metadata_from_scripts(field_name_unstk,variable_record['scripting'],variable_record['attributes'],mdmdoc)
-                mdmitem_stk = metadata_functions.generate_updated_metadata_stk_categorical(mdmitem_stk,mdmdoc)
-                mdmitem_stk = metadata_functions.generate_updated_metadata_rename(mdmitem_stk,'{part_old}{part_added}'.format(part_old=mdmitem_unstk.Name,part_added='_YN'),mdmdoc)
+                mdmitem_stk = mdata_functions.create_mdmvariable(field_name_unstk,variable_record['scripting'],variable_record['attributes'],mdmdoc_stk)
+                mdmitem_stk = mdata_functions.create_mdmvariable_categorical_yn(mdmitem_stk,mdmdoc_stk)
+                mdmitem_stk = mdata_functions.rename_mdmvariable(mdmitem_stk,'{part_old}{part_added}'.format(part_old=mdmitem_unstk.Name,part_added='_YN'))
 
                 # combine labels, properties, attributes
                 # somehow labels disappear when switching from Question context to Analysis context
@@ -673,7 +685,7 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
                 if variable_record_final['attributes']['object_type_value']==0:
                     variable_record_final['attributes']['data_type'] = mdmitem_stk.DataType
 
-                for result_patch in process_stack_a_categorical(mdmitem_stk,mdmitem_stk.Name,path_stk,mdmitem_unstk,field_name_unstk,path_unstk,variable_record_final,variable_records,mdmdoc,get_list_existing_items,config):
+                for result_patch in process_stack_a_categorical(mdmitem_stk,mdmitem_stk.Name,path_stk,mdmitem_unstk,field_name_unstk,path_unstk,variable_record_final,variable_records,mdmdoc_stk,get_list_existing_items,config):
                     result_401_402_combined.append(result_patch)
 
             else:

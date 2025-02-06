@@ -4,7 +4,7 @@ A fun attempt to automate stacking
 Download files from the latest Release page:
 [Releases](../../releases/latest)
 
-To get it started, just edit the BAT file and insert the path to your MDD. Then just start the BAT file. Please note, there is no "pause" at the end. If it disappears, it means everything worked and finished successfully. 401_PreSTack and 402_Stack files will be generated (in the same folder as the BAT file but this can be configured - see inside the BAT file).
+To get it started, just edit the BAT file and insert the path to your MDD. Then just start the BAT file. Please note, there is no "pause" at the end. If it disappears, it means everything worked and finished successfully. 401_PreSTack and 402_Stack files will be generated (in the same folder as your MDD, or in the same folder as the BAT file, if you put "." as OUT_PATH inside the BAT file, so this can be configured - see inside the BAT file).
 
 You don't even have to define what you are stacking on. The tool will decide everything for you.
 
