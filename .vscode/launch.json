@@ -30,6 +30,15 @@
             "console": "integratedTerminal",
             "args": ["--program","mdd-patch","--inp-type","dms","--inp-filename","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Autostack-py\\tests\\current\\test_data\\R2401582.mdd_401_temp.dms","--patch","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Autostack-py\\tests\\current\\test_data\\R2401582.mdd-patch-401.json","--output-filename","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Autostack-py\\tests\\current\\test_data\\R2401582.mdd_401_PreStack.dms"],
             "justMyCode": true
+        },
+        {
+            "name": "Python: STK PatchPost- Apply Test",
+            "type": "python",
+            "request": "launch",
+            "program": "src/run_universal.py",
+            "console": "integratedTerminal",
+            "args": ["--program","mdd-patch","--inp-type","dms","--inp-filename","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Autostack-py\\tests\\current\\test_data\\R2400814M.mdd_401_STKPrep.dms_pre.dms","--patch","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Autostack-py\\tests\\current\\test_data\\R2400814M.mdd-afterpatch.json","--output-filename","S:\\Personal Folders\\Putilov\\code snippets\\autostacking\\DMS-Autostack-py\\tests\\current\\test_data\\R2400814M.mdd_401_PreStack.dms"],
+            "justMyCode": true
         }
     ]
 }
