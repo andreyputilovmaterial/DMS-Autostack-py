@@ -214,7 +214,7 @@ def generate_code_categories_containsany( variable_with_categories_name, categor
     elif code_style_category_list_style=='explicitcatlist':
         result = result.replace('<<CATLIST>>',','.join([cat_name for cat_name in iter_cat_names(categories_iterating_over)]))
     elif code_style_category_list_style=='globaldmgrvar':
-        result = result.replace('{<<CATLIST>>}','dmgrGlobal.<<DEFINEDCATEGORIESGLOBALVAR>>')
+        result = result.replace('{<<CATLIST>>}','<<DEFINEDCATEGORIESGLOBALVAR>>')
         # raise ValueError('generating code with dmgrGlobal - not implemented yet (it is more complicated than it\'s looking)')
     else:
         raise ValueError('generate_code_categories_containsany: unrecognized code_style_category_list_style: {s}'.format(s=code_style_category_list_style))
@@ -265,7 +265,7 @@ def generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, s
     if is_iterative:
         
         variable_local_name = make_local_var_name(path=stk_variable_path,field_name=stk_variable_name)
-        variable_definedcategories_local_name = 'DefinedCategories_{n}'.format(n=variable_local_name)
+        variable_definedcategories_local_name = 'Iterations_{n}'.format(n=variable_local_name)
 
         code_style_configletter1 = CONFIG_CHECK_CATEGORIES_STYLE[0] if len(CONFIG_CHECK_CATEGORIES_STYLE)>=2 else None
         code_style_configletter2 = CONFIG_CHECK_CATEGORIES_STYLE[1] if len(CONFIG_CHECK_CATEGORIES_STYLE)>=2 else None
@@ -301,14 +301,15 @@ def generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, s
             # but that's not an actual variable with a name, so we need to skip it, that's why we just add ".Item[0]", to step over this level
             # if we try to find its name, it shows category names
             assert not not mdmitem_unstk_iterlevel, 'generating OnJobStart scripts: mdmitem_unstk_iterlevel is empty'
+            vars_prev_added = []
             mdmitem_processed = mdmitem_unstk_iterlevel
             variable_ref_str = ''
-            variable_definedcategories_local_name = ''
+            # variable_definedcategories_local_name = ''
             field_name = mdmitem_processed.Name
             while True:
                 if field_name:
                     variable_ref_str = '.' + field_name + variable_ref_str
-                    variable_definedcategories_local_name = '_' + field_name + variable_definedcategories_local_name
+                    # variable_definedcategories_local_name = '_' + field_name + variable_definedcategories_local_name
                 mdmitem_processed = mdmitem_processed.Parent
                 field_name = None
                 if not mdmitem_processed:
@@ -317,27 +318,45 @@ def generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, s
                     continue
                 elif '@class' in mdmitem_processed.Name:
                     # see explanation for that ".Item[0]" above - that's actually that level that we need to step over
+                    variable_ref_str = '.' + 'Item[0]' + variable_ref_str
                     continue
                 field_name = mdmitem_processed.Name
-                if mdmitem_processed.ObjectTypeValue==1 or mdmitem_processed.ObjectTypeValue==2:
-                    variable_ref_str = '.' + 'Item[0]' + variable_ref_str
             variable_ref_str = 'DmgrJob.Questions' + variable_ref_str
-            variable_definedcategories_local_name = 'DefinedCategories' + variable_definedcategories_local_name
+            # variable_definedcategories_local_name = 'DefinedCategories' + variable_definedcategories_local_name
+            if variable_ref_str.lower() not in [ name.lower() for name in vars_prev_added ]:
 
-            result_onjobstart_edits = '\t\' <<VARNAME>>...\n\tDmgrGlobal.Add("<<VARNAME>>")\n\tDmgrGlobal.<<VARNAME>> = <<VARREF>>.DefinedCategories()\n'.replace('<<VARNAME>>',variable_definedcategories_local_name).replace('<<VARREF>>',variable_ref_str)
-            yield patch_classes.PatchSectionOtherInsert(
-                position = patch_classes.Position(-1),
-                section_name = 'OnJobStart',
-                comment = {
-                    'source_from': unstk_variable_name,
-                    'source_for': stk_variable_name,
-                    'target': '401_PreStack_script',
-                },
-                payload = {
-                    'variable': stk_variable_name,
-                    'lines': result_onjobstart_edits,
-                },
-            )
+                vars_prev_added.append(variable_ref_str)
+
+                result_onjobstart_edits = '\t\' <<VARNAME>>...\n\tDmgrGlobal.Add("<<VARNAME>>")\n\tDmgrGlobal.<<VARNAME>> = <<VARREF>>.DefinedCategories()\n'.replace('<<VARNAME>>',variable_definedcategories_local_name).replace('<<VARREF>>',variable_ref_str)
+                yield patch_classes.PatchSectionOtherInsert(
+                    position = patch_classes.Position(-1),
+                    section_name = 'OnJobStart',
+                    comment = {
+                        'source_from': unstk_variable_name,
+                        'source_for': stk_variable_name,
+                        'target': '401_PreStack_script',
+                    },
+                    payload = {
+                        'variable': stk_variable_name,
+                        'lines': result_onjobstart_edits,
+                    },
+                )
+
+                result_onnextcase_added_edits = 'dim <<VARNAME>>\n<<VARNAME>> = DmgrGlobal.<<VARNAME>> \' referring to local variable is faster\n'.replace('<<VARNAME>>',variable_definedcategories_local_name).replace('<<VARREF>>',variable_ref_str)
+                yield patch_classes.PatchSectionOtherInsert(
+                    position = patch_classes.Position(0),
+                    section_name = 'OnNextCase',
+                    comment = {
+                        'source_from': unstk_variable_name,
+                        'source_for': stk_variable_name,
+                        'target': '401_PreStack_script',
+                    },
+                    payload = {
+                        'variable': stk_variable_name,
+                        'lines': result_onnextcase_added_edits,
+                    },
+                )
+
         code_script = result['code']
         if not re.match(r'\s*\n\s*$',code_script,flags=re.I|re.DOTALL):
             code_script = code_script + '\n'
