@@ -56,6 +56,12 @@ def entry_point(runscript_config={}):
         required=True
     )
     parser.add_argument(
+        '--config-code-style',
+        help='Optional flags to be passed with preferences on generated code style',
+        type=str,
+        required=False
+    )
+    parser.add_argument(
         '--output-patch-401',
         help='Set preferred output file name, with path,for patch file for 401_PreStack script',
         type=str,
@@ -82,6 +88,25 @@ def entry_point(runscript_config={}):
         raise FileNotFoundError('Inp source: file not provided; please use --inp-mdd-scheme option')
 
     config = {}
+    if args.config_code_style:
+        spec = args.config_code_style
+        code_style_config = {}
+        for flag in spec.split(','):
+            if flag=='categorycheck-operator':
+                code_style_config['assignment_op'] = 'operator'
+            elif flag=='categorycheck-containsany':
+                code_style_config['assignment_op'] = 'containsany'
+            elif flag=='categorycheck-explicitcatlist':
+                code_style_config['category_list_style'] = 'explicitcatlist'
+            elif flag=='categorycheck-definedcategories':
+                code_style_config['category_list_style'] = 'definedcategories'
+            elif flag=='categorycheck-globaldmgrvar':
+                code_style_config['category_list_style'] = 'globaldmgrvar'
+            else:
+                raise Exception('can\'t handle config option: {p}'.format(p=flag))
+        config['code_style'] = {
+            'category_check': code_style_config,
+        }
 
     variable_specs = None
     variable_specs_file_name = None

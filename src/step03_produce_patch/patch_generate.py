@@ -374,7 +374,7 @@ def process_outerloop(name,key_categories,category_records,mdmdoc_stk,get_list_e
             'attributes': { 'object_type_value': 1, 'label': None, 'type': 'array' },
         },
     )
-    for chunk in onc_functions.generate_patches_outerstkloop_walkthrough( None, None, stk_variable_name=name, stk_variable_path='', unstk_variable_name='' ):
+    for chunk in onc_functions.generate_patches_outerstkloop_walkthrough( None, None, stk_variable_name=name, stk_variable_path='', unstk_variable_name='', config=config ):
         yield chunk
     
 
@@ -405,7 +405,7 @@ def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field
     if False:
         # # it means it's a regular plain variable
         # # we can use direct assignment
-        # for chunk in onc_functions.generate_patches_loop_unstack_simple( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, stk_variable_path=path_stk, unstk_variable_name=loop_name_unstk, unstk_variable_fieldname=field_name_unstk, categories_iterating_over=loop_variable_unstk['categories'] ):
+        # for chunk in onc_functions.generate_patches_loop_unstack_simple( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, stk_variable_path=path_stk, unstk_variable_name=loop_name_unstk, unstk_variable_fieldname=field_name_unstk, categories_iterating_over=loop_variable_unstk['categories'], config=config ):
         #     yield chunk
         pass
     else:
@@ -417,7 +417,7 @@ def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field
         # anyway, doing euristic analysis is not 100% right, it is not the most performance efficient
         # and stacking is sometimes slow, it can take 8 hours, or more, in some projects, i.e. Disney+&Hulu tracker
         # So I have to generate proper code here iterating over all loops and fields
-        for chunk in onc_functions.generate_patches_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, stk_variable_path=path_stk, unstk_variable_name=loop_name_unstk ):
+        for chunk in onc_functions.generate_patches_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, stk_variable_path=path_stk, unstk_variable_name=loop_name_unstk, config=config ):
             yield chunk
         
     count_entries_stk = len( [ item for item in get_list_existing_items() if util_vars.sanitize_item_name(util_vars.trim_dots('{path}.{field_name}'.format(path=path_stk,field_name=field_name_stk)))==util_vars.sanitize_item_name(item) ] )
@@ -448,7 +448,7 @@ def process_stack_a_categorical(mdmitem_stk,field_name_stk,path_stk,mdmitem_unst
             'attributes': variable_record['attributes'],
         },
     )
-    for chunk in onc_functions.generate_patches_unstack_categorical_yn( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, stk_variable_path=path_stk, unstk_variable_name=field_name_unstk ):
+    for chunk in onc_functions.generate_patches_unstack_categorical_yn( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, stk_variable_path=path_stk, unstk_variable_name=field_name_unstk, config=config ):
         yield chunk
     
     count_entries_stk = len( [ item for item in get_list_existing_items() if util_vars.sanitize_item_name(util_vars.trim_dots('{path}.{field_name}'.format(path=path_stk,field_name=field_name_stk)))==util_vars.sanitize_item_name(item) ] )
@@ -496,7 +496,7 @@ def process_every_parent(path_stk,variable_records,mdmdoc_stk,get_list_existing_
                     'attributes': variable_record_unstk['attributes'],
                 },
             )
-            for chunk in onc_functions.generate_patches_loop_walkthrough( mdmitem, None, stk_variable_name=current_item_stk_name, stk_variable_path=current_item_stk_path, unstk_variable_name=current_item_stk_name ):
+            for chunk in onc_functions.generate_patches_loop_walkthrough( mdmitem, None, stk_variable_name=current_item_stk_name, stk_variable_path=current_item_stk_path, unstk_variable_name=current_item_stk_name, config=config ):
                 yield chunk
             parent, rest = util_vars.extract_parent_name(rest)
 

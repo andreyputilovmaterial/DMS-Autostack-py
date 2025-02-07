@@ -226,27 +226,27 @@ def generate_code_categories_containsany( variable_with_categories_name, categor
 
 
 
-def generate_patches_outerstkloop_walkthrough( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name ):
+def generate_patches_outerstkloop_walkthrough( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, config ):
     template = templates.TEMPLATE_OUTERSTK_LOOP_CODE
-    for chunk in generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel=mdmitem_unstk ):
+    for chunk in generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel=mdmitem_unstk, config=config ):
         yield chunk
 
-def generate_patches_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name ):
+def generate_patches_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, config ):
     template = templates.TEMPLATE_STACK_LOOP
-    for chunk in generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel=find_mdmparent(mdmitem_unstk) ):
+    for chunk in generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel=find_mdmparent(mdmitem_unstk), config=config ):
         yield chunk
 
-def generate_patches_unstack_categorical_yn( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name ):
+def generate_patches_unstack_categorical_yn( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, config ):
     template = templates.TEMPLATE_STACK_CATEGORICALYN
-    for chunk in generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel=mdmitem_unstk ):
+    for chunk in generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel=mdmitem_unstk, config=config ):
         yield chunk
 
-def generate_patches_loop_walkthrough( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name ):
+def generate_patches_loop_walkthrough( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, config ):
     template = templates.TEMPLATE_LOOP_PARENT
-    for chunk in generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel=mdmitem_unstk ):
+    for chunk in generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel=mdmitem_unstk, config=config ):
         yield chunk
 
-def generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel ):
+def generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel, config ):
 
     result = {**template} # copy, not modify
 
@@ -269,9 +269,15 @@ def generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, s
 
         code_style_configletter1 = CONFIG_CHECK_CATEGORIES_STYLE[0] if len(CONFIG_CHECK_CATEGORIES_STYLE)>=2 else None
         code_style_configletter2 = CONFIG_CHECK_CATEGORIES_STYLE[1] if len(CONFIG_CHECK_CATEGORIES_STYLE)>=2 else None
+        preferred_catcheck_assignment_op = config['code_style']['category_check']['assignment_op'] if config and 'code_style' in config and 'category_check' in config['code_style'] and 'assignment_op' in config['code_style']['category_check'] else None
+        if not preferred_catcheck_assignment_op:
+            preferred_catcheck_assignment_op = 'operator' if code_style_configletter1=='O' else ( 'containsany' if code_style_configletter1=='C' else '???' )
+        preferred_catcheck_list_style = config['code_style']['category_check']['category_list_style'] if config and 'code_style' in config and 'category_check' in config['code_style'] and 'category_list_style' in config['code_style']['category_check'] else None
+        if not preferred_catcheck_list_style:
+            preferred_catcheck_list_style = 'definedcategories' if code_style_configletter2=='D' else ( 'explicitcatlist' if code_style_configletter2=='E' else ( 'globaldmgrvar' if code_style_configletter2=='G' else '???' ) )
         code_style = {
-            'assignment_op': 'operator' if code_style_configletter1=='O' else ( 'containsany' if code_style_configletter1=='C' else '???' ),
-            'category_list_style': 'definedcategories' if code_style_configletter2=='D' else ( 'explicitcatlist' if code_style_configletter2=='E' else ( 'globaldmgrvar' if code_style_configletter2=='G' else '???' ) ),
+            'assignment_op': preferred_catcheck_assignment_op,
+            'category_list_style': preferred_catcheck_list_style,
         }
         code_style_compare_alt1 = {
             **code_style,
@@ -281,7 +287,10 @@ def generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, s
             **code_style,
             'category_list_style': 'globaldmgrvar' if not(code_style['category_list_style']=='globaldmgrvar') else 'definedcategories',
         }
-        if code_style_configletter2=='G':
+        if code_style['category_list_style']=='globaldmgrvar':
+            # if we refer to dmgrglobal var, it should be created in OnJobStart section - that's what we are doing here
+
+            # example of syntax generated:
             # variable_ref_str = 'DmgrJob.Questions["FirstSecondBank"].Item[0].GV'
             # why this part ".Item[0]" is necessary?
             # friendly speaking, I don't know
@@ -291,8 +300,7 @@ def generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, s
             # that "fields -" creates a level that also can be addressed
             # but that's not an actual variable with a name, so we need to skip it, that's why we just add ".Item[0]", to step over this level
             # if we try to find its name, it shows category names
-            if not mdmitem_unstk_iterlevel:
-                raise Exception('why is that?')
+            assert not not mdmitem_unstk_iterlevel, 'generating OnJobStart scripts: mdmitem_unstk_iterlevel is empty'
             mdmitem_processed = mdmitem_unstk_iterlevel
             variable_ref_str = ''
             variable_definedcategories_local_name = ''
