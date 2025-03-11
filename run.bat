@@ -5,6 +5,8 @@ SETLOCAL enabledelayedexpansion
 @REM :: insert your files here
 SET "MDD_FILE=..\tests\working\current\R2401582.mdd"
 
+
+
 @REM :: the path where outout files are saved
 @REM :: "." means the same directory as this script
 @REM :: empty path ("") means the same directory as your MDD
@@ -47,7 +49,8 @@ REM SET "CONFIG_CODESTYLE_CATCHECK_OP=categorycheck-containsany"
 
 @REM :: unsuppress one of those 3:
 @REM :: - to check against exact categories listed ( "=* {Disney,Hulu,StarWars}")
-@REM ::   this is the fasted, but it takes more efform to support if it's a tracker - you'll have to review the list every wave
+@REM ::   this is the fastest, but it takes more effort to support.
+@REM ::   If it's a tracker - you'll have to review the list every wave. Obviously, you'll forget to update some of the categories at some question - and some data will be missing in stacked data. This always happens.
 REM SET "CONFIG_CODESTYLE_CATCHECK_LIST=categorycheck-explicitcatlist"
 @REM :: - or just call "".DefinedCategories()", which is the easiest approach, all is handled automatically
 @REM ::   but is the slowest as for processing time
