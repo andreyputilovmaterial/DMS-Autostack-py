@@ -498,7 +498,7 @@ def process_every_parent(path_stk,variable_records,mdmdoc_stk,get_list_existing_
             )
             for chunk in onc_functions.generate_patches_loop_walkthrough( mdmitem, None, stk_variable_name=current_item_stk_name, stk_variable_path=current_item_stk_path, unstk_variable_name=current_item_stk_name, config=config ):
                 yield chunk
-            parent, rest = util_vars.extract_parent_name(rest)
+        parent, rest = util_vars.extract_parent_name(rest)
 
 
 
