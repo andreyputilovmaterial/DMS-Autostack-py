@@ -13,8 +13,8 @@ SET "MDD_FILE=..\tests\working\current\R2401582.mdd"
 @REM :: temporary files are still created at the location of your MDD (it all is configured within this BAT file - adjust if you need)
 @REM :: but temp files are deleted at the end of script (if you have CONFIG_CLEAN_TEMP_MIDDLE_FILES==1==1)
 
-REM SET "OUT_PATH=."
-SET "OUT_PATH="
+REM SET "OUT_PATH="
+SET "OUT_PATH=."
 
 
 
