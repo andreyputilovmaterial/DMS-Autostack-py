@@ -83,14 +83,23 @@ Event(OnBeforeJobStart)
 	DeleteFileWithWild(GetCurrentPath() + "Bad Cases *.txt")
 End Event
 
-' -----------------------------------------------------------------------
+'' -----------------------------------------------------------------------
 'Metadata(ENU, Analysis, Label, Input)
+'    STKLoop - loop
+'    {
+'        use SL_BrandListAssigned -
+'    } fields -
+'    (
 '
+'
+'' Add your variables here, inside the loop
+'' However, is STKCreate the right script, are you sure?
 '' ...
 '
+'
+'    ) expand;
 'End Metadata
-' -----------------------------------------------------------------------
-
+'' -----------------------------------------------------------------------
 
 Event(OnJobStart, "Do the set up")
 	#include "Includes\DBadCaseFile\Create.mrs"	
