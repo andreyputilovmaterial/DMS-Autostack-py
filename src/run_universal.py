@@ -11,7 +11,8 @@ import traceback
 if __name__ == '__main__':
     # run as a program
     from lib.mdmreadpy import read_mdd
-    from lib.mdmreadpy.lib.mdmreportpy import report_create
+    from lib.mdmreadpy.lib.mdmreportpy import report_create as report_html_create
+    from lib.mdmreport_excel import report_create as report_excel_create
     from step02_guess_vars import entry as autostk_var_guesser
     from step03_produce_patch import entry as autostk_patch_generate
     from step04_text_utility import templater as autostk_templates
@@ -19,7 +20,8 @@ if __name__ == '__main__':
 elif '.' in __name__:
     # package
     from .lib.mdmreadpy import read_mdd
-    from .lib.mdmreadpy.lib.mdmreportpy import report_create
+    from .lib.mdmreadpy.lib.mdmreportpy import report_create as report_html_create
+    from .lib.mdmreport_excel import report_create as report_excel_create
     from .step02_guess_vars import entry as autostk_var_guesser
     from .step03_produce_patch import entry as autostk_patch_generate
     from .step04_text_utility import templater as autostk_templates
@@ -27,7 +29,8 @@ elif '.' in __name__:
 else:
     # included with no parent package
     from lib.mdmreadpy import read_mdd
-    from lib.mdmreadpy.lib.mdmreportpy import report_create
+    from lib.mdmreadpy.lib.mdmreportpy import report_create as report_html_create
+    from lib.mdmreport_excel import report_create as report_excel_create
     from step02_guess_vars import entry as autostk_var_guesser
     from step03_produce_patch import entry as autostk_patch_generate
     from step04_text_utility import templater as autostk_templates
@@ -41,8 +44,11 @@ else:
 def call_read_mdd_program():
     return read_mdd.entry_point({'arglist_strict':False})
 
-def call_report_program():
-    return report_create.entry_point({'arglist_strict':False})
+def call_report_html_program():
+    return report_html_create.entry_point({'arglist_strict':False})
+
+def call_report_excel_program():
+    return report_excel_create.entry_point({'arglist_strict':False})
 
 def call_autostk_var_guesser_program():
     return autostk_var_guesser.entry_point({'arglist_strict':False})
@@ -56,17 +62,27 @@ def call_mdd_patch_program():
 def call_autostk_temp_text_program():
     return autostk_templates.entry_point({'arglist_strict':False})
 
+def call_autostk_test_program():
+    msg = '''
+Hello, world!
+'''
+    print(msg)
+    return
+
 
 
 
 
 run_programs = {
     'read_mdd': call_read_mdd_program,
-    'report': call_report_program,
+    'report': call_report_html_program,
+    'report_html': call_report_html_program,
+    'report_excel': call_report_excel_program,
     'mdd-autostacking-pick-variables': call_autostk_var_guesser_program,
     'mdd-autostacking-prepare-patch': call_autostk_generate_patch_program,
     'mdd-patch': call_mdd_patch_program,
     'mdd-autostk-text-utility': call_autostk_temp_text_program,
+    'test': call_autostk_test_program,
 }
 
 

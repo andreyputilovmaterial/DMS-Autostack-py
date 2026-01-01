@@ -7,3 +7,6 @@
 [submodule "src/lib/mdmpatchpy"]
 	path = src/lib/mdmpatchpy
 	url = https://github.com/andreyputilovmaterial/MDM-Patchtools-py.git
+[submodule "src/lib/mdmreport_excel"]
+	path = src/lib/mdmreport_excel
+	url = https://github.com/andreyputilovmaterial/MDM-ExcelReport-py.git
