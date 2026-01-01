@@ -1,6 +1,8 @@
 
 import re
 
+import sys # for error reporting, to print messages to stderr
+import warnings
 
 
 # import pythoncom
@@ -124,11 +126,11 @@ def create_mdmvariable(name,script,attr_dict,mdmroot,isgrid_retry_attempts=None)
     elif detect_type == 'block':
         mdmitem = mdmroot.CreateClass(name, name)
     elif not detect_type:
-        raise ValueError('Cat\'t create object: unrecognized type')
+        raise Exception('Cat\'t create object: unrecognized type')
     else:
-        raise ValueError('Can\'t handle this type of bject: {s}'.format(s=detect_type))
+        raise Exception('Can\'t handle this type of bject: {s}'.format(s=detect_type))
     if not detect_type:
-        raise ValueError('Failed to create variable, please check all data in the patch specs')
+        raise Exception('Failed to create variable, please check all data in the patch specs')
     # if 'object_type_value' in attr_dict:
     #     # we can't set ObjectTypeValue prop here, and we don't have to
     #     # this property should already be of proper type
@@ -225,7 +227,7 @@ def update_mdmvariable_attributes(mdmitem,updated_metadata_data):
             def sanitize_prop_name(name):
                 name = re.sub(r'^\s*(.*?)\s*(?:\(.*?\)\s*?)?\s*?$',lambda m: m[1],name,flags=re.I)
                 if re.match(r'^.*?[^\w].*?$',name,flags=re.I):
-                    # raise ValueError('Invalid Prop Name: {s}'.format(s=name))
+                    # raise Exception('Invalid Prop Name: {s}'.format(s=name))
                     return None
                 return name
             propname_clean = sanitize_prop_name(prop_name)
@@ -259,7 +261,7 @@ def sync_labels_and_key_spss_properties_from_mddreport(mdmitem,variable_record):
         if m:
             return re.sub(r'\s*\.\s*$','',m[1]),m[2]
         else:
-            raise ValueError('Can\'t extract field name from "{s}"'.format(s=item_name))
+            raise Exception('Can\'t extract field name from "{s}"'.format(s=item_name))
     def sanitize_item_name(item_name):
         return re.sub(r'\s*$','',re.sub(r'^\s*','',re.sub(r'\s*([\[\{\]\}\.])\s*',lambda m:'{m}'.format(m=m[1]),item_name,flags=re.I))).lower()
     def sanitize_field_name(name):
@@ -270,14 +272,19 @@ def sync_labels_and_key_spss_properties_from_mddreport(mdmitem,variable_record):
             if mdmelem.IsReference:
                 # shared list - nothing to update
                 pass
-            elif mdmelem.Type==0: # mdmlib.ElementTypeConstants.mtCategory
+            elif mdmelem.Type==0: # 0==mdmlib.ElementTypeConstants.mtCategory
                 # category
                 yield mdmelem
-            elif mdmelem.Type==1: # mdmlib.ElementTypeConstants.mtCategoryList
-                for mdmsubelem in iterate_over_categories(mdmelem):
-                    yield mdmsubelem
+            elif (mdmelem.Type==1) or (mdmelem.Type==13): # 1==mdmlib.ElementTypeConstants.mtCategoryList
+                yield from iterate_over_categories(mdmelem)
+            elif (mdmelem.Type==4097) or (re.match(r'^\s*?\d+\s*?$','{s}'.format(s=mdmelem.Name),flags=re.I|re.DOTALL)):
+                yield mdmelem
+                pass
             else:
-                print('WARNING: updating labels: category type not recognized: {s}'.format(s=mdmelem.Name))
+                try:
+                    yield from iterate_over_categories(mdmelem)
+                except:
+                    yield mdmelem
     # 1. update item label
     label_upd = sanitize_line_breaks(variable_record['label'])
     if label_upd:
@@ -291,7 +298,7 @@ def sync_labels_and_key_spss_properties_from_mddreport(mdmitem,variable_record):
         potentially_has_categories_stkver = ( (mdmitem.ObjectTypeValue==0 and mdmitem.DataType==3) or ( mdmitem.ObjectTypeValue==1 or mdmitem.ObjectTypeValue==2 ) )
         has_categories_unstkver = 'categories' in variable_record and len(variable_record['categories'])>0
         if not(potentially_has_categories_stkver==has_categories_unstkver):
-            print('WARNING: updating labels: could not compare category list and update labels: {name} ({report_name})'.format(name=mdmitem.Name,report_name=variable_record['name']))
+            warnings.warn('WARNING: updating labels: could not compare category list and update labels: {name} ({report_name})'.format(name=mdmitem.Name,report_name=variable_record['name']),RuntimeWarning)
         if potentially_has_categories_stkver and has_categories_unstkver:
             for mdmcat in iterate_over_categories(mdmitem):
                 matching = [ cat for cat in variable_record['categories'] if sanitize_item_name(mdmcat.Name)==sanitize_item_name(cat['name']) ]
@@ -308,17 +315,17 @@ def sync_labels_and_key_spss_properties_from_mddreport(mdmitem,variable_record):
                         else:
                             mdmcat.Properties[prop_name] = prop_value
                 else:
-                    print('WARNING: updating labels: no matching category: {name}, variable name: {var_name} ({report_name})'.format(name=mdmcat.Name,var_name=mdmitem.Name,report_name=variable_record['name']))
+                    warnings.warn('WARNING: updating labels: no matching category: {name}, variable name: {var_name} ({report_name})'.format(name=mdmcat.Name,var_name=mdmitem.Name,report_name=variable_record['name']),RuntimeWarning)
     except Exception as e:
-        print('updating labels: Error: something happened when synchronizing category labels of  {name} ({report_name})'.format(name=mdmitem.Name,report_name=variable_record['name']))
-        print(e)
+        print('updating labels: Error: something happened when synchronizing category labels of  {name} ({report_name})'.format(name=mdmitem.Name,report_name=variable_record['name']),file=sys.stderr)
+        print(e,file=sys.stderr) # make this non-critical, if something happened during updating labels... it's not an essential part
         pass
     # 3. update labels for all subfields
     try:
         has_subfields_stkver = ( ( mdmitem.ObjectTypeValue==1 or mdmitem.ObjectTypeValue==2 or mdmitem.ObjectTypeValue==3 ) ) and mdmitem.Fields.Count>0
         has_subfields_unstkver = 'subfields' in variable_record and len(variable_record['subfields'])>0
         if has_subfields_stkver and not has_subfields_unstkver:
-            print('WARNING: updating labels: could not compare subfields list and update labels: {name} ({report_name})'.format(name=mdmitem.Name,report_name=variable_record['name']))
+            warnings.warn('WARNING: updating labels: could not compare subfields list and update labels: {name} ({report_name})'.format(name=mdmitem.Name,report_name=variable_record['name']),RuntimeWarning)
         if has_subfields_stkver and has_subfields_unstkver:
             for mdmfield in mdmitem.Fields:
                 matching = [ item for item in variable_record['subfields'] if sanitize_item_name(mdmfield.Name)==sanitize_field_name(item['name']) ]
@@ -326,10 +333,10 @@ def sync_labels_and_key_spss_properties_from_mddreport(mdmitem,variable_record):
                     subfield_variable_record = matching[0]
                     sync_labels_and_key_spss_properties_from_mddreport(mdmfield,subfield_variable_record)
                 else:
-                    print('WARNING: updating labels: no matching subfield: {name}, variable name: {var_name} ({report_name})'.format(name=mdmfield.Name,var_name=mdmitem.Name,report_name=variable_record['name']))
+                    warnings.warn('WARNING: updating labels: no matching subfield: {name}, variable name: {var_name} ({report_name})'.format(name=mdmfield.Name,var_name=mdmitem.Name,report_name=variable_record['name']),RuntimeWarning)
     except Exception as e:
-        print('Error: updating labels: something happened when synchronizing subfield of  {name} ({report_name})'.format(name=mdmitem.Name,report_name=variable_record['name']))
-        print(e)
+        print('Error: updating labels: something happened when synchronizing subfield of  {name} ({report_name})'.format(name=mdmitem.Name,report_name=variable_record['name']),file=sys.stderr)
+        print(e,file=sys.stderr) # make this non-critical, if something happened during updating labels... it's not an essential part
         pass
     return mdmitem
 

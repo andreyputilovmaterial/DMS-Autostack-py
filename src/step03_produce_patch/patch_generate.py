@@ -1,4 +1,5 @@
 import re
+import sys # for error reporting - printing errors to stderr
 
 
 
@@ -35,7 +36,6 @@ else:
 # TODO: review "not aaa in bbb" vs "aaa not in bbb"
 # TODO: (done) check that "get_list_existing_items" is passed to every function when necessary
 # TODO: check that every assert statement has a message
-# TODO: print errors to stderr
 # TODO: review that file open() is always used with "with"
 
 
@@ -584,7 +584,7 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
                 try:
                     item_attrs = variable_records[util_vars.sanitize_item_name(path)]['attributes']
                 except KeyError as e:
-                    raise KeyError('Trying to find unstacked variable matching "{name}": not found ({e})'.format(name=path,e=e))
+                    raise Exception('Trying to find unstacked variable matching "{name}": not found ({e})'.format(name=path,e=e)) from e
                 item_is_helperfield = 'is_helper_field' in item_attrs and re.match(r'^\s*?true\s*?$',item_attrs['is_helper_field'],flags=re.I|re.DOTALL)
                 if not item_is_helperfield:
                     mdmitem_unstk = mdmitem_unstk.Fields[item_name]
@@ -689,10 +689,10 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
                     result_401_402_combined.append(result_patch)
 
             else:
-                raise ValueError('Generating updated item metadata: can\'t handle this type, not implemented: {s}'.format(s=variable_type))
+                raise Exception('Generating updated item metadata: can\'t handle this type, not implemented: {s}'.format(s=variable_type))
 
         except Exception as e:
-            print('Failed when processing variable: {s}'.format(s=variable_id))
+            print('Failed when processing variable: {s}'.format(s=variable_id),file=sys.stderr)
             raise e
     result_401 = []
     result_402 = []

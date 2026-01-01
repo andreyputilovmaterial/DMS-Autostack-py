@@ -88,7 +88,7 @@ def entry_point(runscript_config={}):
     elif action=='template-402':
         template = template_402.TEMPLATE
     else:
-        raise TypeError('mdd autostk texttools: this action is not implemented yet: "{a}"'.format(a=args.action))
+        raise Exception('mdd autostk texttools: this action is not implemented yet: "{a}"'.format(a=args.action))
     print('{script_name}: template: "{t}"'.format(t=action,script_name=script_name))
 
     result = template

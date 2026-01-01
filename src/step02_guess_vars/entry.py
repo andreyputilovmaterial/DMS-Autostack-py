@@ -104,7 +104,7 @@ def entry_point(runscript_config={}):
         except json.JSONDecodeError as e:
             # just a more descriptive message to the end user
             # can happen if the tool is started two times in parallel and it is writing to the same json simultaneously
-            raise TypeError('Autostacking variable and loop guesser: Can\'t read input file as JSON: {msg}'.format(msg=e))
+            raise Exception('Autostacking variable and loop guesser: Can\'t read input file as JSON: {msg}'.format(msg=e))
     
     print('{script_name}: script started at {dt}'.format(dt=time_start,script_name=script_name))
 
