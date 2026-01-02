@@ -153,7 +153,7 @@ def generate_recursive_onnextcase_code(mdmitem_stk,mdmitem_ref):
 
 
 def generate_code_categories_containsany( variable_with_categories_name, categories_iterating_over, category_check, code_style={} ):
-    
+
     # class Cat:
     #     # the only goal is to provide conversion to str method
     #     # so that we don't care if we pass mdm categories, dict with 'name' attribute, or just categories as strings
@@ -183,15 +183,13 @@ def generate_code_categories_containsany( variable_with_categories_name, categor
                 shared_list_name = re.sub(r'[\^/\\\.\{\}#\s]','',shared_list_name,flags=re.I|re.DOTALL)
                 assert re.match(r'^\w+$',shared_list_name,flags=re.I|re.DOTALL), 'generate_code_categories_containsany: iter_cat_names: trying to collect categories and iterate over mdm elements, and trying to refer to a shared list, and can\'t extract proper name, bad characters still in name: {s}'.format(s=mdmcat.ReferenceName)
                 mdmsharedlist = mdmcat.Document.Types[shared_list_name]
-                for child in iter_cat_names(mdmsharedlist):
-                    yield child
+                yield from iter_cat_names(mdmsharedlist)
             elif mdmcat.Type==0:
                 yield mdmcat.Name
             else:
-                for child in iter_cat_names(mdmcat):
-                    yield child
+                yield from iter_cat_names(mdmcat)
 
-    
+
     assert categories_iterating_over is not None, 'warning: generate_code_categories_containsany: categories_iterating_over is None'
 
     code_style_assignment_op = 'operator'
@@ -228,23 +226,19 @@ def generate_code_categories_containsany( variable_with_categories_name, categor
 
 def generate_patches_outerstkloop_walkthrough( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, config ):
     template = templates.TEMPLATE_OUTERSTK_LOOP_CODE
-    for chunk in generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel=mdmitem_unstk, config=config ):
-        yield chunk
+    yield from generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel=mdmitem_unstk, config=config )
 
 def generate_patches_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, config ):
     template = templates.TEMPLATE_STACK_LOOP
-    for chunk in generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel=find_mdmparent(mdmitem_unstk), config=config ):
-        yield chunk
+    yield from generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel=find_mdmparent(mdmitem_unstk), config=config )
 
 def generate_patches_unstack_categorical_yn( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, config ):
     template = templates.TEMPLATE_STACK_CATEGORICALYN
-    for chunk in generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel=mdmitem_unstk, config=config ):
-        yield chunk
+    yield from generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel=mdmitem_unstk, config=config )
 
 def generate_patches_loop_walkthrough( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, config ):
     template = templates.TEMPLATE_LOOP_PARENT
-    for chunk in generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel=mdmitem_unstk, config=config ):
-        yield chunk
+    yield from generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel=mdmitem_unstk, config=config )
 
 def generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel, config ):
 
@@ -261,9 +255,9 @@ def generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, s
             # maybe we don't need unnecessary line breaks and comments for just "GV"
             result_add = re.sub(r'(^|\n)((?:\s*?(?:\'[^\n]*?)?\s*?\n)*)',lambda m: m[1],result_add,flags=re.I|re.DOTALL)
         result['code'] = re.sub(r'^(.*?\n)((\s*?)<<RECURSIVE>>[^\n]*?\n)(.*?)$',lambda m: '{code_begin}{code_add}{code_end}'.format(code_begin=m[1],code_end=m[4],code_add=add_indent(result_add,indent=m[3])),result['code'],flags=re.I|re.DOTALL)
-    
+
     if is_iterative:
-        
+
         variable_local_name = make_local_var_name(path=stk_variable_path,field_name=stk_variable_name)
         variable_definedcategories_local_name = 'Iterations_{n}'.format(n=variable_local_name)
 
@@ -386,10 +380,10 @@ def generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, s
             code_script = part_leading + indent + '\' ' + statement_script_alt2 + '\n' + indent + '\' ' + statement_script_alt1 + '\n' + indent + '' + statement_script_main + '\n' + part_trailing
             find_regex_results = re.finditer(re.compile(r'(^|\n)(\s*?)([^\s][^\n]*?)(<<CATEGORIESCHECK>>)([^\n]*?)(\s*?\n)',flags=re.I|re.DOTALL),code_script)
             find_regex_results =  [m for m in find_regex_results] if find_regex_results else [] # so that I can refer to multiple items of a generator multiple times
-        
+
         code_script = code_script.replace('<<DEFINEDCATEGORIESGLOBALVAR>>',variable_definedcategories_local_name)
         result['code'] = code_script
-    
+
     result_edits = prepare_syntax_substitutions( result, stk_variable_name, unstk_variable_name )
     yield patch_classes.PatchSectionOnNextCaseInsert(
         position = patch_classes.Position(stk_variable_path),

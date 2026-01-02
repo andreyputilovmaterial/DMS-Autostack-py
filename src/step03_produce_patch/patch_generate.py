@@ -130,7 +130,7 @@ def should_exclude_field(mdmfield,mdmsiblings):
         object_type_value = mdmitem.ObjectTypeValue
         # 1 is loop, 2 is grid, 3 is class (block)
         return (object_type_value==1) or (object_type_value==2) or (object_type_value==3)
-    
+
     std_fields_skip = [
         'NavButtonSelect'
     ]
@@ -374,9 +374,8 @@ def process_outerloop(name,key_categories,category_records,mdmdoc_stk,get_list_e
             'attributes': { 'object_type_value': 1, 'label': None, 'type': 'array' },
         },
     )
-    for chunk in onc_functions.generate_patches_outerstkloop_walkthrough( None, None, stk_variable_name=name, stk_variable_path='', unstk_variable_name='', config=config ):
-        yield chunk
-    
+    yield from onc_functions.generate_patches_outerstkloop_walkthrough( None, None, stk_variable_name=name, stk_variable_path='', unstk_variable_name='', config=config )
+
 
 def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field_name_unstk,path_unstk,variable_record,variable_records,mdmdoc_stk,get_list_existing_items,config):
     mdmitem_stk = mdata_functions.sync_labels_and_key_spss_properties_from_mddreport(mdmitem_stk,variable_record)
@@ -384,8 +383,7 @@ def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field
     _, loop_name_unstk = util_vars.extract_field_name(path_unstk)
     # loop_variable_unstk = variable_records[util_vars.sanitize_item_name(path_unstk)]
 
-    for result_patch_parent in process_every_parent(path_stk,variable_records,mdmdoc_stk,get_list_existing_items,config):
-        yield result_patch_parent
+    yield from process_every_parent(path_stk,variable_records,mdmdoc_stk,get_list_existing_items,config)
 
     # done with parent levels, add record for processing the variable that is stacked
     result_metadata = mdmitem_stk.Script
@@ -417,9 +415,8 @@ def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field
         # anyway, doing euristic analysis is not 100% right, it is not the most performance efficient
         # and stacking is sometimes slow, it can take 8 hours, or more, in some projects, i.e. Disney+&Hulu tracker
         # So I have to generate proper code here iterating over all loops and fields
-        for chunk in onc_functions.generate_patches_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, stk_variable_path=path_stk, unstk_variable_name=loop_name_unstk, config=config ):
-            yield chunk
-        
+        yield from onc_functions.generate_patches_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, stk_variable_path=path_stk, unstk_variable_name=loop_name_unstk, config=config )
+
     count_entries_stk = len( [ item for item in get_list_existing_items() if util_vars.sanitize_item_name(util_vars.trim_dots('{path}.{field_name}'.format(path=path_stk,field_name=field_name_stk)))==util_vars.sanitize_item_name(item) ] )
     exist_stk = count_entries_stk>0
     duplicate_stk = count_entries_stk>1
@@ -431,8 +428,7 @@ def process_stack_a_loop(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field
 def process_stack_a_categorical(mdmitem_stk,field_name_stk,path_stk,mdmitem_unstk,field_name_unstk,path_unstk,variable_record,variable_records,mdmdoc_stk,get_list_existing_items,config):
     mdmitem_stk = mdata_functions.update_mdmvariable_attributes(mdmitem_stk,variable_record)
 
-    for result_patch_parent in process_every_parent(path_stk,variable_records,mdmdoc_stk,get_list_existing_items,config):
-        yield result_patch_parent
+    yield from process_every_parent(path_stk,variable_records,mdmdoc_stk,get_list_existing_items,config)
 
     # done with parent levels, add record for processing the variable that is stacked
     result_metadata = mdmitem_stk.Script
@@ -448,9 +444,8 @@ def process_stack_a_categorical(mdmitem_stk,field_name_stk,path_stk,mdmitem_unst
             'attributes': variable_record['attributes'],
         },
     )
-    for chunk in onc_functions.generate_patches_unstack_categorical_yn( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, stk_variable_path=path_stk, unstk_variable_name=field_name_unstk, config=config ):
-        yield chunk
-    
+    yield from onc_functions.generate_patches_unstack_categorical_yn( mdmitem_stk, mdmitem_unstk, stk_variable_name=field_name_stk, stk_variable_path=path_stk, unstk_variable_name=field_name_unstk, config=config )
+
     count_entries_stk = len( [ item for item in get_list_existing_items() if util_vars.sanitize_item_name(util_vars.trim_dots('{path}.{field_name}'.format(path=path_stk,field_name=field_name_stk)))==util_vars.sanitize_item_name(item) ] )
     exist_stk = count_entries_stk>0
     duplicate_stk = count_entries_stk>1
@@ -496,8 +491,7 @@ def process_every_parent(path_stk,variable_records,mdmdoc_stk,get_list_existing_
                     'attributes': variable_record_unstk['attributes'],
                 },
             )
-            for chunk in onc_functions.generate_patches_loop_walkthrough( mdmitem, None, stk_variable_name=current_item_stk_name, stk_variable_path=current_item_stk_path, unstk_variable_name=current_item_stk_name, config=config ):
-                yield chunk
+            yield from onc_functions.generate_patches_loop_walkthrough( mdmitem, None, stk_variable_name=current_item_stk_name, stk_variable_path=current_item_stk_path, unstk_variable_name=current_item_stk_name, config=config )
         parent, rest = util_vars.extract_parent_name(rest)
 
 
@@ -555,7 +549,7 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
     }))
     for variable_id in variable_specs['variables']:
         try:
-            
+
             print_log_processing(variable_id)
             next(performance_counter)
             # read variable data from variable_specs
@@ -568,11 +562,11 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
             #     continue
             # not doing it here anymore - we suppose all fitlering is done in step02_guess_vars
             # if a variable is specced for stacking here - our job is to stack it, not to decide that this should be skipped
-            
+
             # processed variable is not always a top level variable
             # maybe we need to process every parent and add metadata for them
             # see process_every_parent within process_stack_a_loop and process_stack_a_categorical
-            
+
             # and now manipulations with MDD
             mdmitem_unstk = mdmdoc_unstk
             item_name, path_rest = util_vars.extract_parent_name(variable_record['name'])
@@ -592,10 +586,10 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
                     mdmitem_unstk = mdmitem_unstk.HelperFields[item_name]
             mdmitem_stk = None # none yet, we'll create it depending on its type, if it should be a stacked loop or y/n categorical
 
-            
-            
+
+
             if variable_type=='loop':
-                
+
                 mdmitem_outer_unstk = mdmitem_unstk
                 is_a_single_item_within_loop = False
                 fields_include = [ mdmfield.Name for mdmfield in mdmitem_outer_unstk.Fields if not should_exclude_field(mdmfield,mdmitem_outer_unstk.Fields) ]
@@ -608,11 +602,11 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
                         path_unstk, field_name_unstk = util_vars.extract_field_name(full_name_unstk)
                         variable_record_unstk = variable_records[util_vars.sanitize_item_name(full_name_unstk)]
                         mdmitem_inner_unstk = mdmitem_outer_unstk.Fields[field_name_unstk]
-                        
+
                         outer_path, _ = util_vars.extract_field_name(variable_record['name'])
                         full_name_stk = '{loopname}{path}.{field_name}'.format(loopname=stk_loopname,path='.{path}'.format(path=outer_path) if outer_path else '',field_name=mdmitem_loop_field.Name)
                         path_stk, _ = util_vars.extract_field_name(full_name_stk)
-                        
+
                         mdmitem_stk = mdata_functions.create_mdmvariable(mdmitem_loop_field.Name,mdmitem_loop_field.Script,variable_record_unstk['attributes'],mdmdoc_stk)
                         is_improper_name = check_if_improper_name(mdmitem_loop_field.Name)
                         field_name_stk = mdmitem_loop_field.Name
@@ -629,7 +623,7 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
                             field_name_stk = '{part_parent}_{part_field}'.format(part_parent=mdmitem_outer_unstk.Name,part_field=mdmitem_stk.Name)
                         if not (field_name_stk == mdmitem_stk.Name):
                             mdmitem_stk = mdata_functions.rename_mdmvariable(mdmitem_stk,field_name_stk)
-                        
+
                         # combine from variable_record_unstk and variable_record
                         # somehow labels disappear when switching from Question context to Analysis context
                         # so I'll reset it back to original value captured by mdd_read
@@ -659,7 +653,7 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
                             result_401_402_combined.append(result_patch)
 
             elif variable_type=='categorical':
-                
+
                 full_name_unstk = variable_record['name']
                 path_unstk, field_name_unstk = util_vars.extract_field_name(full_name_unstk)
                 full_name_stk = util_vars.trim_dots('{stk_loopname}.{path_nested}'.format(stk_loopname=stk_loopname,path_nested=util_vars.trim_dots('{path}.{field_name}'.format(path=path_unstk,field_name=field_name_unstk))))
