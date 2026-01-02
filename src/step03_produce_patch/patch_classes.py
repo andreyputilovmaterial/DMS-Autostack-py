@@ -95,6 +95,13 @@ class PatchSectionOtherInsert(Patch):
 
 
 
+# this fn (actually, formatted as class, but conceptually a fn)
+# this fn does not look for item, or resolve the path, as you could have expected
+# it just gets the input, of various formats - can be sent a number, a string, a regex pattern
+# and formats it for the final patch object formatted as json
+# different types of inputs mean differetn types of address
+# if it's a number, it's position, like line number, if it's a string, it can be item name in metadata, if it's a regex, that's what we search for in scripts, and find the position to insert the patched piece, etc...
+# but this is not controlled here, we don't look what is being passed, we only format it for the json, only pass through
 class Position(dict):
     def __init__(self,position):
         result = {}

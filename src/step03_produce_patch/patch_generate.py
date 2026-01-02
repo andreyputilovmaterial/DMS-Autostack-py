@@ -157,6 +157,10 @@ def check_if_improper_name(name):
     is_improper_name = is_improper_name or not not re.match(r'^\s*?(?:GV|Rank|Num)\s*?$',name,flags=re.I)
     return is_improper_name
 
+def check_if_conflicting_name(name_suggested,names_existing):
+    # return (name_suggested in names_existing)
+    return len([item for item in names_existing if util_vars.sanitize_item_name(item).startswith(util_vars.sanitize_item_name(name_suggested)+'.') ])>0
+
 def check_if_field_name_can_be_used_as_final_name(mdmparent,variable_record,variable_records,get_list_existing_items,config):
     result = True
     flag_iim = False
@@ -208,6 +212,19 @@ def choose_loop_name(variable_records,name_to_start_with):
         stk_loopname = '{base_part}_{knt}'.format(base_part=CONFIG_LOOP_NAME_SUGGESTED,knt=counter)
         counter = counter + 1
     return stk_loopname
+
+
+
+def translate_path_applying_prev_stk_transformations_on_every_parent(path,prev_patches):
+    # wow super complicated
+    # if some of the parents is already stacked
+    # then... actually, what should we do?
+    # actually, we shouldn't be adjusting the path
+    # we can't append transformed item to transformed parent
+    # so the idea to tranlate the path and find the new insertion point is not viable
+    # I'll just return the same, path, without transformations
+    # if there's a problem, it should be solved ensuring that all parents are recreated, and the proper insertion point does exist
+    return path
 
 
 
@@ -329,7 +346,7 @@ def process_outerloop(name,key_categories,category_records,mdmdoc_stk,get_list_e
     yield patch_classes.PatchInsert(
         position = patch_classes.Position(0),
         comment = {
-            'description': 'comment for tracking when it was done and why',
+            'description': 'comment for tracking: when it was done and why',
             'target': '402_Stack_script',
         },
         payload = {
@@ -473,6 +490,10 @@ def process_every_parent(path_stk,variable_records,mdmdoc_stk,get_list_existing_
         full_path_stk = util_vars.trim_dots('{prev}.{added}'.format(prev=full_path_stk,added=parent))
         full_path_unstk = util_vars.trim_dots('{prev}.{added}'.format(prev=full_path_unstk,added=parent))
         exist_parent = len( [ item for item in get_list_existing_items() if util_vars.sanitize_item_name(util_vars.trim_dots('{path}.{field_name}'.format(path=current_item_stk_path,field_name=current_item_stk_name)))==util_vars.sanitize_item_name(item) ] ) > 0
+        if exist_parent:
+            # parent_type = ... too complicated... theoretically we can grab it from metadata from patch entry, and detect the type
+            # assert parent_type!=0, 'checking of parent should be added, it exists, but it\'s type is plain, most probably does not support adding children: parent is "{f}"'.format(f=current_item_stk_name)
+            pass
         if not exist_parent:
             # create it
             variable_record_unstk = variable_records[util_vars.sanitize_item_name(full_path_unstk)]
@@ -501,11 +522,10 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
 
 
     # here we have a list of items in the output patch file
-    result_401_402_combined = []
+    result_patches_401_402_combined = []
 
     def get_list_existing_items():
-        result = []
-        for chunk in result_401_402_combined:
+        for chunk in result_patches_401_402_combined:
             if chunk['comment']['target']=='401_PreStack_script':
                 if chunk['action']==patch_classes.PatchSectionMetadataInsert.action:
                     try:
@@ -518,11 +538,10 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
                         else:
                             raise Exception('can\'t extract position, patch chunk position format does not follow the pattern')
                         potential_name = util_vars.sanitize_item_name(util_vars.trim_dots('{path}.{field_name}'.format(path=path,field_name=field_name)))
-                        result.append(potential_name)
+                        yield potential_name
                     except Exception as e:
                         raise Exception('failed when trying to check existing chunks and failed when trying to filter: {e}'.format(e=e)) from e
 
-        return result
 
     # here we go, first, we should create the loop
     stk_loopname = choose_loop_name(variable_records,CONFIG_LOOP_NAME_SUGGESTED)
@@ -538,7 +557,7 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
 
     # 1. add that global loop
     for result_patch in process_outerloop(name=stk_loopname,key_categories=variable_specs['categories'],category_records=category_records,mdmdoc_stk=mdmdoc_stk,get_list_existing_items=get_list_existing_items,config=config):
-        result_401_402_combined.append(result_patch)
+        result_patches_401_402_combined.append(result_patch)
 
     # now process every variable
     performance_counter = iter(utility_performance_monitor.PerformanceMonitor(config={
@@ -604,7 +623,7 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
                         mdmitem_inner_unstk = mdmitem_outer_unstk.Fields[field_name_unstk]
 
                         outer_path, _ = util_vars.extract_field_name(variable_record['name'])
-                        full_name_stk = '{loopname}{path}.{field_name}'.format(loopname=stk_loopname,path='.{path}'.format(path=outer_path) if outer_path else '',field_name=mdmitem_loop_field.Name)
+                        full_name_stk = '{loopname}{path}.{field_name}'.format(loopname=stk_loopname,path='.{path}'.format(path=translate_path_applying_prev_stk_transformations_on_every_parent(outer_path,result_patches_401_402_combined)) if outer_path else '',field_name=mdmitem_loop_field.Name)
                         path_stk, _ = util_vars.extract_field_name(full_name_stk)
 
                         mdmitem_stk = mdata_functions.create_mdmvariable(mdmitem_loop_field.Name,mdmitem_loop_field.Script,variable_record_unstk['attributes'],mdmdoc_stk)
@@ -621,6 +640,11 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
                                 field_name_stk = '{part_parent}_{part_field}'.format(part_parent=mdmitem_outer_unstk.Name,part_field=mdmitem_stk.Name)
                         else:
                             field_name_stk = '{part_parent}_{part_field}'.format(part_parent=mdmitem_outer_unstk.Name,part_field=mdmitem_stk.Name)
+                        while check_if_conflicting_name(
+                            util_vars.sanitize_item_name(util_vars.trim_dots('{path}.{name}'.format(path=outer_path,name=field_name_stk))),
+                            [util_vars.sanitize_item_name(variable_id) for variable_id in variable_specs['variables']]
+                        ):
+                            field_name_stk = '{part_persist}{suffix_add}'.format(part_persist=field_name_stk,suffix_add='_STK')
                         if not (field_name_stk == mdmitem_stk.Name):
                             mdmitem_stk = mdata_functions.rename_mdmvariable(mdmitem_stk,field_name_stk)
 
@@ -650,13 +674,13 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
                                     variable_record_unstk_final['attributes']['is_grid'] = 'false'
 
                         for result_patch in process_stack_a_loop(mdmitem_stk,mdmitem_stk.Name,path_stk,mdmitem_inner_unstk,field_name_unstk,path_unstk,variable_record_unstk_final,variable_records,mdmdoc_stk,get_list_existing_items,config):
-                            result_401_402_combined.append(result_patch)
+                            result_patches_401_402_combined.append(result_patch)
 
             elif variable_type=='categorical':
 
                 full_name_unstk = variable_record['name']
                 path_unstk, field_name_unstk = util_vars.extract_field_name(full_name_unstk)
-                full_name_stk = util_vars.trim_dots('{stk_loopname}.{path_nested}'.format(stk_loopname=stk_loopname,path_nested=util_vars.trim_dots('{path}.{field_name}'.format(path=path_unstk,field_name=field_name_unstk))))
+                full_name_stk = util_vars.trim_dots('{stk_loopname}.{path_nested}'.format(stk_loopname=stk_loopname,path_nested=util_vars.trim_dots('{path}.{field_name}'.format(path=translate_path_applying_prev_stk_transformations_on_every_parent(path_unstk,result_patches_401_402_combined),field_name=field_name_unstk))))
                 path_stk, field_name_stk = util_vars.extract_field_name(full_name_stk)
 
                 mdmitem_stk = mdata_functions.create_mdmvariable(field_name_unstk,variable_record['scripting'],variable_record['attributes'],mdmdoc_stk)
@@ -680,7 +704,7 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
                     variable_record_final['attributes']['data_type'] = mdmitem_stk.DataType
 
                 for result_patch in process_stack_a_categorical(mdmitem_stk,mdmitem_stk.Name,path_stk,mdmitem_unstk,field_name_unstk,path_unstk,variable_record_final,variable_records,mdmdoc_stk,get_list_existing_items,config):
-                    result_401_402_combined.append(result_patch)
+                    result_patches_401_402_combined.append(result_patch)
 
             else:
                 raise Exception('Generating updated item metadata: can\'t handle this type, not implemented: {s}'.format(s=variable_type))
@@ -690,7 +714,7 @@ def generate_patches_stk(variable_specs,variable_records,category_records,config
             raise e
     result_401 = []
     result_402 = []
-    for chunk in result_401_402_combined:
+    for chunk in result_patches_401_402_combined:
         assert 'comment' in chunk, 'every chunk in a patch must have target specified, if it\'s "401_PreStack_script" or "402_Stack_script"'
         if chunk['comment']['target']=='401_PreStack_script':
             result_401.append(chunk)
