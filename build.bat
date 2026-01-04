@@ -20,8 +20,8 @@ ECHO # ... >> dist/mdmautostktoolsap_bundle.py
 ECHO # print('within mdmautostktoolsap_bundle') >> dist/mdmautostktoolsap_bundle.py
 REM REM :: no need for this, the root package is loaded automatically
 @REM ECHO # import mdmautostktoolsap_bundle >> dist/mdmautostktoolsap_bundle.py
-ECHO from src import run_universal >> dist/mdmautostktoolsap_bundle.py
-ECHO run_universal.main() >> dist/mdmautostktoolsap_bundle.py
+ECHO from src import launcher >> dist/mdmautostktoolsap_bundle.py
+ECHO launcher.main() >> dist/mdmautostktoolsap_bundle.py
 ECHO # print('out of mdmautostktoolsap_bundle') >> dist/mdmautostktoolsap_bundle.py
 
 PUSHD dist
