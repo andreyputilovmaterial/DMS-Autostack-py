@@ -39,7 +39,7 @@ def entry_point(runscript_config={}):
 
     parser = argparse.ArgumentParser(
         description="MDD: produce text files",
-        prog='mdd-autostk-text-utility'
+        prog='mdd-autostk-write-template'
     )
     parser.add_argument(
         '--action',

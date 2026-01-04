@@ -79,10 +79,10 @@ run_programs = {
     'report': call_report_html_program,
     'report_html': call_report_html_program,
     'report_excel': call_report_excel_program,
-    'mdd-autostacking-pick-variables': call_autostk_identify_variables_program, # to be renamed to mdd-autostk-identify-variables
-    'mdd-autostacking-prepare-patch': call_autostk_prepare_patch_program, # to be renamed to mdd-autostk-prepare-patch
+    'mdd-autostk-identify-variables': call_autostk_identify_variables_program,
+    'mdd-autostk-prepare-patch': call_autostk_prepare_patch_program,
     'mdd-patch': call_mdd_patch_program,
-    'mdd-autostk-text-utility': call_autostk_write_template_program, # to be renamed to mdd-autostk-write-template
+    'mdd-autostk-write-template': call_autostk_write_template_program,
     'test': call_autostk_test_program,
 }
 

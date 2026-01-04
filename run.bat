@@ -137,19 +137,19 @@ IF %CONFIG_PRODUCE_EXCEL_MDD% (
 
 ECHO -
 ECHO 2. decide on which questions and loops should be stacked
-python dist/mdmautostktoolsap_bundle.py --program mdd-autostacking-pick-variables --inp-mdd-scheme "%MDD_FILE_SCHEME%" %CONFIG_PREFER_CATEGORIES% --output-filename "%MDD_FILE_VARIABLES%"
+python dist/mdmautostktoolsap_bundle.py --program mdd-autostk-identify-variables --inp-mdd-scheme "%MDD_FILE_SCHEME%" %CONFIG_PREFER_CATEGORIES% --output-filename "%MDD_FILE_VARIABLES%"
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
 
 ECHO -
 ECHO 3. generate patch file
-python dist/mdmautostktoolsap_bundle.py --program mdd-autostacking-prepare-patch --inp-mdd-scheme "%MDD_FILE_SCHEME%" --var-list "%MDD_FILE_VARIABLES%" %CONFIG_CODESTYLE_OPTIONS% --output-patch-401 "%MDD_FILE_PATCH_STEP401%" --output-patch-402 "%MDD_FILE_PATCH_STEP402%"
+python dist/mdmautostktoolsap_bundle.py --program mdd-autostk-prepare-patch --inp-mdd-scheme "%MDD_FILE_SCHEME%" --var-list "%MDD_FILE_VARIABLES%" %CONFIG_CODESTYLE_OPTIONS% --output-patch-401 "%MDD_FILE_PATCH_STEP401%" --output-patch-402 "%MDD_FILE_PATCH_STEP402%"
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
 
 ECHO -
 ECHO 4. temporary files with base templates
-python dist/mdmautostktoolsap_bundle.py --program mdd-autostk-text-utility --action template-401 --output-filename "%MDD_FILE_TEMP_STEP401%"
+python dist/mdmautostktoolsap_bundle.py --program mdd-autostk-write-template --action template-401 --output-filename "%MDD_FILE_TEMP_STEP401%"
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
-python dist/mdmautostktoolsap_bundle.py --program mdd-autostk-text-utility --action template-402 --output-filename "%MDD_FILE_TEMP_STEP402%"
+python dist/mdmautostktoolsap_bundle.py --program mdd-autostk-write-template --action template-402 --output-filename "%MDD_FILE_TEMP_STEP402%"
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
 
 ECHO -

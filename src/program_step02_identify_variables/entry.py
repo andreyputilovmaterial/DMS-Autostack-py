@@ -47,7 +47,7 @@ def entry_point(runscript_config={}):
 
     parser = argparse.ArgumentParser(
         description="Autostacking: guess which loops and variables to stack on",
-        prog='mdd-autostacking-pick-variables'
+        prog='mdd-autostk-identify-variables'
     )
     parser.add_argument(
         '--inp-mdd-scheme',

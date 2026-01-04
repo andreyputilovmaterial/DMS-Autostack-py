@@ -40,7 +40,7 @@ def entry_point(runscript_config={}):
 
     parser = argparse.ArgumentParser(
         description="MDD: produce patches for stk",
-        prog='mdd-autostacking-prepare-patch'
+        prog='mdd-autostk-prepare-patch'
     )
     parser.add_argument(
         '-1',
