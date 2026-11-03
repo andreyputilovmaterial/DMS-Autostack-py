@@ -1,11 +1,9 @@
 """Tests for ``mdd-autostk-identify-variables`` (step 02).
 
-Covers the algorithm-version dispatch: ``v1`` (default) runs and produces a
-valid variable/category spec, and ``v2`` is an explicit placeholder that fails
-with a clear message.
-
-Like ``test_done_program.py``, these drive the real launcher via a subprocess so
-the three-way import and dispatch paths are exercised end to end.
+Covers the algorithm-version dispatch: ``v1`` (default) produces a single
+variable/category spec, and ``v2`` produces multiple candidate groups ranked
+best-first. Both are driven through the real launcher via a subprocess so the
+three-way import and dispatch paths are exercised end to end.
 """
 
 import json
@@ -61,11 +59,20 @@ class TestIdentifyVariablesDispatch(unittest.TestCase):
         finally:
             tmpdir.cleanup()
 
-    def test_v2_is_placeholder(self):
+    def test_v2_returns_candidates(self):
         proc, out_path, tmpdir = _run_identify_variables(algorithm_ver="v2")
         try:
-            self.assertNotEqual(proc.returncode, 0)
-            self.assertIn("not implemented", proc.stderr)
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr)
+            result = json.loads(out_path.read_text(encoding="utf-8"))
+            self.assertEqual(result["algorithm_ver"], "v2")
+            candidates = result["candidates"]
+            self.assertGreaterEqual(len(candidates), 2, "expected multiple candidates")
+            # first candidate is the best match and mirrors the legacy fields
+            self.assertEqual(set(candidates[0]["categories"]), EXPECTED_BRAND_CATEGORIES)
+            self.assertEqual(set(result["categories"]), EXPECTED_BRAND_CATEGORIES)
+            # candidates are ranked best-first
+            scores = [c["score"] for c in candidates]
+            self.assertEqual(scores, sorted(scores, reverse=True))
         finally:
             tmpdir.cleanup()
 

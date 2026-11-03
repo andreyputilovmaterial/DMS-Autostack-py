@@ -164,8 +164,8 @@ its own package under `algorithms/` and exposes the same
 
 ```
 algorithms/
-    v1/find_variables_stack.py   # the current, stable algorithm
-    v2/find_variables_stack.py   # placeholder (raises NotImplementedError)
+    v1/find_variables_stack.py   # single best match
+    v2/find_variables_stack.py   # ranked candidate groups
 ```
 
 Rules:
@@ -179,15 +179,46 @@ Rules:
 To add `v3`: create `algorithms/v3/` with the same function, add its `__init__`
 package, and add one line to the `ALGORITHM_IMPL` registry in `entry.py`.
 
-## 5. `v2` design suggestions
+## 5. Algorithm version `v2` (ranked candidate groups)
 
-- Keep the mutual-propagation principle.
-- Make the question-count vs shared-category-count trade-off an explicit
-  coefficient instead of the hardcoded `0.8 + 0.2·w_q` / `^4` blend.
-- No explicit loop handling is needed (flattening already multiplies).
-- Consider scoring the whole group with a single objective (e.g. a weighted
-  product of `num_questions` and `num_shared_categories`) rather than the
-  current "best N-category combination" search.
+`v2` is a clean-room re-implementation of the same intent. Instead of a single
+best match it returns **multiple candidate groups ranked best-first**; each
+candidate is a group of categories plus the questions that use all of them.
+
+1. **Prepare.** Drop questions flagged `skip`; weight each category with
+   `_category_quality`: junk names (`Other`/`None`/`PreferNotSay`) → `0.15`,
+   scale names (`_1`, `Yes`/`No`) → `0.3`, otherwise `1.0` (non-priority
+   categories get `×0.3` when a priority list is supplied).
+2. **Enumerate candidates.** Candidate category-sets are the intersections of
+   question category lists, for single questions and every question pair. For
+   each set, the group's questions are those using every category in it.
+3. **Collapse to closed groups.** For each question-set keep the maximal
+   category-set (the largest shared list).
+4. **Score.** `score = questions^2 × effective_categories`, where
+   `effective_categories` saturates toward `10` (diminishing returns), so "few
+   questions × huge list" is not rewarded linearly.
+5. **Emit.** Top `20` candidates, best first; `categories`/`variables` at the
+   top level mirror the best candidate for backward compatibility with step 03.
+
+Output shape:
+
+```json
+{
+  "algorithm_ver": "v2",
+  "variables": ["..."],
+  "categories": ["..."],
+  "variables_raw": ["..."],
+  "candidates": [
+    { "categories": ["..."], "variables": ["..."], "score": 112.8 }
+  ],
+  "comment": { "candidate_count": 8, "config": { ... } }
+}
+```
+
+Coefficients (module constants in `algorithms/v2/find_variables_stack.py`):
+`QUESTION_EXPONENT=2`, `CATEGORY_SATURATION=10`, `JUNK_RATIO=0.15`,
+`SCALE_RATIO=0.3`, `PRIORITY_PENALTY=0.3`, `MIN_CATEGORIES=2`,
+`MIN_QUESTIONS=2`, `MAX_CANDIDATES=20`.
 
 ---
 

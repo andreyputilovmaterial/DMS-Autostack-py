@@ -86,7 +86,9 @@ data. It reads an `.mdd` file, decides which questions/loops to stack, produces
     report shape.
   - `algorithms/v1/` — the previous `find_variables_stack.py` algorithm, now
     consuming the model (plain relative imports / stdlib only).
-  - `algorithms/v2/` — placeholder that raises `NotImplementedError`.
+  - `algorithms/v2/` — clean-room re-implementation returning ranked candidate
+    groups (multiple candidates, best first; see
+    `docs/step02-identify-variables.md` §5).
 - Added `--config-algorithm-ver {v1,v2}` (default `v1`) to the
   `mdd-autostk-identify-variables` entry point; the version is echoed into the
   output as `algorithm_ver`. Versions are separate packages with no cross-imports
@@ -99,7 +101,7 @@ data. It reads an `.mdd` file, decides which questions/loops to stack, produces
   only; regular `tests/` and `test_*.py` are now tracked (previously `[Tt]est*`
   ignored all tests).
 - Added `tests/test_step02_identify_variables.py` (stdlib `unittest`, subprocess
-  end-to-end) covering v1 default / explicit v1 / v2 placeholder.
+  end-to-end) covering v1 default / explicit v1 / v2 candidate groups.
 - Added primary example fixture `tests/fixtures/a1_v3.mdd.json` (synthetic, not
   real/sensitive) with the expected selection being the six brand categories
   (`Nike`, `Tesla`, `CocaCola`, `Select`, `YesStream`, `NoStream`); a test
