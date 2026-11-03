@@ -2,9 +2,9 @@
 # *
 *.mdd
 *.ddf
-**/[Tt]est*
-[Tt]est*
-[Tt]est*/
+# Test directories with real/sensitive data (any level); regular tests/ and
+# test_*.py files are tracked (matches MDM-Diff-py's .gitignore standard).
+tests-real-sensitive-data/
 ref.py
 **/__pycache__/
 __pycache__
@@ -14,7 +14,6 @@ __pycache__/
 report.*
 # Except this file
 !.gitignore
-# !tests/
 
 examples/
 dist/

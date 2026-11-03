@@ -76,6 +76,39 @@ data. It reads an `.mdd` file, decides which questions/loops to stack, produces
   outer repo can reference it.
 
 
+## 2026-11-03 step02 algorithm/adapters split + versioned algorithms
+
+- Split `src/program_step02_identify_variables/` into an adapter layer and a
+  versioned algorithm layer:
+  - `adapters/` — `mdd_fields.py` (flattens the MDD JSON `fields` list into the
+    internal `questions`/`categories` model; precomputes `is_assigner`/`skip`),
+    `util_var_functions.py` (item-name parsing). Only this layer knows the JSON
+    report shape.
+  - `algorithms/v1/` — the previous `find_variables_stack.py` algorithm, now
+    consuming the model (plain relative imports / stdlib only).
+  - `algorithms/v2/` — placeholder that raises `NotImplementedError`.
+- Added `--config-algorithm-ver {v1,v2}` (default `v1`) to the
+  `mdd-autostk-identify-variables` entry point; the version is echoed into the
+  output as `algorithm_ver`. Versions are separate packages with no cross-imports
+  and no fallback.
+- Only `entry.py` (a starter script) uses the three-way conditional import; all
+  other modules use plain relative imports (per MDM-Diff-py's
+  `02-python-portability.md` standard).
+- Documented intent/math/adapters in `docs/step02-identify-variables.md`.
+- Fixed `.gitignore` to the MDM-Diff-py standard: ignore `tests-real-sensitive-data/`
+  only; regular `tests/` and `test_*.py` are now tracked (previously `[Tt]est*`
+  ignored all tests).
+- Added `tests/test_step02_identify_variables.py` (stdlib `unittest`, subprocess
+  end-to-end) covering v1 default / explicit v1 / v2 placeholder.
+- Added primary example fixture `tests/fixtures/a1_v3.mdd.json` (synthetic, not
+  real/sensitive) with the expected selection being the six brand categories
+  (`Nike`, `Tesla`, `CocaCola`, `Select`, `YesStream`, `NoStream`); a test
+  asserts `v1` picks them over the planted challengers (state list, junk
+  categories, extended brand list).
+- Note: `adapters/mdd_fields.normalize_config` preserves the pre-existing
+  `.isnumeric` (missing `()`) quirk in the `num_categories_pick` normalization;
+  left untouched to avoid a behavior change.
+
 ## Repository rules
 
 See `.clinerules/`.

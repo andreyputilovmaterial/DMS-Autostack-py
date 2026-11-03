@@ -1,8 +1,12 @@
+"""Adapter helpers: parse the flat MDD ``fields`` item names.
 
+These functions know the MDD JSON report shape (``Var`` vs
+``Var.categories[Cat]`` names) and are used only by the adapter layer to turn
+that shape into the internal model consumed by the algorithm versions. They are
+not part of any algorithm.
+"""
 
 import re
-
-
 
 
 def sanitize_item_name(item_name):
@@ -23,4 +27,3 @@ def extract_category_name(item_name):
     item_name_clean = sanitize_item_name(item_name)
     matches = re.match(r'^\s*?(\w(?:[\w\[\{\]\}\.]*?\w)?)\.(?:categories|elements)\s*?\[\s*?\{?\s*?(\w+)\s*?\}?\]\s*?$',item_name_clean,flags=re.I)
     return matches[1],matches[2]
-
