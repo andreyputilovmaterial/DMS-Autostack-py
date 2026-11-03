@@ -31,6 +31,8 @@ The coefficients below are the whole tuning surface — see
 
 import math
 
+from . import category_list
+
 
 # --- tunable coefficients ------------------------------------------------
 QUESTION_EXPONENT = 0.85       # how strongly question count weighs (sublinear)
@@ -84,6 +86,8 @@ def _group_score(num_questions, qualities):
 # main fn here
 def find_variables_to_stack(dict_questions, dict_categories, config={}):
     priority_categories = config.get('priority_categories') or []
+    category_mode = config.get('category_mode', 'intersection')
+    min_frequency = config.get('category_min_frequency')
 
     # questions we are allowed to stack on
     active = {q: v for q, v in dict_questions.items() if not v.get('skip')}
@@ -124,7 +128,6 @@ def find_variables_to_stack(dict_questions, dict_categories, config={}):
         # keep the maximal (highest-scoring) category-set for each question-set
         if qkey not in groups or score > groups[qkey]['score']:
             groups[qkey] = {
-                'category_set': cat_set,
                 'questions': shared,
                 'score': score,
             }
@@ -134,7 +137,10 @@ def find_variables_to_stack(dict_questions, dict_categories, config={}):
     candidates = []
     for g in ranked:
         candidates.append({
-            'categories': sorted(dict_categories[c]['name'] for c in g['category_set']),
+            'categories': category_list.build_category_list(
+                g['questions'], dict_questions, dict_categories,
+                mode=category_mode, min_frequency=min_frequency,
+            ),
             'variables': sorted(dict_questions[q]['name'] for q in g['questions']),
             'score': g['score'],
         })
@@ -157,6 +163,8 @@ def find_variables_to_stack(dict_questions, dict_categories, config={}):
                 'min_categories': MIN_CATEGORIES,
                 'min_questions': MIN_QUESTIONS,
                 'max_candidates': MAX_CANDIDATES,
+                'category_mode': category_mode,
+                'category_min_frequency': min_frequency,
             },
         },
     }

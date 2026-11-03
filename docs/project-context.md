@@ -147,6 +147,27 @@ data. It reads an `.mdd` file, decides which questions/loops to stack, produces
 - Added `test_v2_score_tradeoff` locking in the two numeric targets
   (`20×6 > 10×12`, `10×6 > 20×3`).
 
+## 2026-11-04 configurable category mode (intersection/union)
+
+- Added `--config-category-mode {intersection,union}` to the
+  `mdd-autostk-identify-variables` entry point (optional, no default). Each
+  algorithm keeps its own default: `v1` → `union`, `v2` → `intersection`.
+- `v2`: `category_mode` post-processes each candidate's `categories` — the
+  intersection (shared stubs, default) or the union of every category used by
+  the candidate's questions (v1-like). Echoed in `comment.config.category_mode`.
+- `v1`: `category_mode` selects between the traditional union (with its 69%
+  frequency trim + `None*` exclusion, default) and a plain intersection of the
+  selected variables' categories.
+- Extracted v2's category-list building into
+  `algorithms/v2/category_list.py` (`build_category_list(question_keys, ...,
+  mode, min_frequency)`) so the "questions → combined category list" logic is a
+  single controlled, testable place. v2 reads an optional
+  `category_min_frequency` config (CLI `--config-category-min-frequency`, `0..1`)
+  to drop categories below that share of the selected questions (union mode only).
+- Added `TestCategoryMode` and `TestCategoryListHelper` unit tests (minimal
+  `q1={aaa,bbb,ccc}` / `q2={aaa,bbb,ddd}` model) covering both modes in both
+  versions and the frequency threshold.
+
 ## Repository rules
 
 See `.clinerules/`.

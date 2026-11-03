@@ -162,6 +162,21 @@ The CLI accepts `--config-algorithm-ver {v1,v2}` (default `v2`). Each version is
 its own package under `algorithms/` and exposes the same
 `find_variables_to_stack(dict_questions, dict_categories, config)` signature:
 
+The CLI also accepts `--config-category-mode {intersection,union}` to control how
+the output `categories` list is built:
+
+- `intersection` — the shared stubs only (the maximal set of categories used by
+  every selected question). This is the **default for `v2`**.
+- `union` — every category used by the selected questions (v1's traditional
+  behaviour, including its frequency trim). This is the **default for `v1`**.
+
+When the flag is omitted, each version keeps its own default above.
+
+For `v2` in `union` mode, `--config-category-min-frequency <f>` (optional,
+`0..1`) additionally keeps only categories used by at least `f` of the selected
+questions (no filter when omitted). The category-list building for `v2` lives in
+`algorithms/v2/category_list.py` (`build_category_list`).
+
 ```
 algorithms/
     v1/find_variables_stack.py   # single best match
@@ -204,6 +219,11 @@ candidate is a group of categories plus the questions that use all of them.
    weaker than ~6+ stubs.
 5. **Emit.** Top `20` candidates, best first; `categories`/`variables` at the
    top level mirror the best candidate for backward compatibility with step 03.
+   Each candidate's `categories` is built by
+   `category_list.build_category_list(...)`: the *intersection* (shared stubs) by
+   default, or the *union* of every category used by the candidate's questions
+   with `--config-category-mode union` (optionally trimmed by
+   `--config-category-min-frequency`).
 
 Output shape:
 

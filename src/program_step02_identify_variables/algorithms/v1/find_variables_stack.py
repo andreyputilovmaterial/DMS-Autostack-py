@@ -57,6 +57,7 @@ def find_all_combinations(lst,depth):
 
 # main fn here
 def find_variables_to_stack(dict_questions,dict_categories,config={}):
+    category_mode = config.get('category_mode', 'union')
     for _, cat in dict_categories.items():
         cat['w'] = CONFIG_CAT_WGT_START_WITH * find_adjusted_category_priority(cat,config)
     for _, q in dict_questions.items():
@@ -129,29 +130,38 @@ def find_variables_to_stack(dict_questions,dict_categories,config={}):
     for var in [dict_questions[q]['name'] for q in stk_questions_combined_list]:
         result_variables.append('{qname}'.format(qname=var))
 
-    # result_categories = []
-    result_category_frequencies = {}
-    orig_order_index = 0
-    for q in result_variables:
-        cats_add = dict_questions[q]['iterations']
-        # result_categories.extend([catname for catname in cats_add if not catname in result_categories])
-        for cat in cats_add:
-            if not cat in result_category_frequencies:
-                result_category_frequencies[cat] = { 'name': cat, 'count': 1, 'orig_order_index': orig_order_index }
-                orig_order_index = orig_order_index + 1
-            else:
-                result_category_frequencies[cat]['count'] = result_category_frequencies[cat]['count'] + 1
-    result_category_frequencies = [ cat for _, cat in result_category_frequencies.items() ]
-    result_category_frequencies = sorted(result_category_frequencies,key=lambda c: -c['count']*100+c['orig_order_index']*(1/len(cats_add)) )
-    # if not (len(result_category_frequencies)>0):
-    #     raise ValueError('Something went wrong, no categories found')
-    # I al also trimming category list to only popular entries
-    # and excluding None here (should this be configurable)?
-    key_cat_cutoff_index = len(result_category_frequencies) - int(len(result_category_frequencies)*(.69))
-    key_cutoff_value = result_category_frequencies[key_cat_cutoff_index]['count'] if len(result_category_frequencies)>0 else len(result_variables)
-    result_category_frequencies = [ cat for cat in result_category_frequencies if cat['count']>=key_cutoff_value and not re.match(r'\b(?:NoneThese|NoneAbove|None|NoAnswer|NoneOfThese)\b',cat['name'],flags=re.I) ]
-    result_category_frequencies = [ cat['name'] for cat in result_category_frequencies ]
-    result_categories = result_category_frequencies
+    if category_mode == 'intersection':
+        # shared stubs only: the maximal set of categories used by every
+        # selected variable (v2-like behaviour).
+        shared = None
+        for qname in result_variables:
+            cats = set(dict_questions[qname]['iterations'])
+            shared = cats if shared is None else (shared & cats)
+        result_categories = sorted(shared or set())
+    else:
+        # result_categories = []
+        result_category_frequencies = {}
+        orig_order_index = 0
+        for q in result_variables:
+            cats_add = dict_questions[q]['iterations']
+            # result_categories.extend([catname for catname in cats_add if not catname in result_categories])
+            for cat in cats_add:
+                if not cat in result_category_frequencies:
+                    result_category_frequencies[cat] = { 'name': cat, 'count': 1, 'orig_order_index': orig_order_index }
+                    orig_order_index = orig_order_index + 1
+                else:
+                    result_category_frequencies[cat]['count'] = result_category_frequencies[cat]['count'] + 1
+        result_category_frequencies = [ cat for _, cat in result_category_frequencies.items() ]
+        result_category_frequencies = sorted(result_category_frequencies,key=lambda c: -c['count']*100+c['orig_order_index']*(1/len(cats_add)) )
+        # if not (len(result_category_frequencies)>0):
+        #     raise ValueError('Something went wrong, no categories found')
+        # I al also trimming category list to only popular entries
+        # and excluding None here (should this be configurable)?
+        key_cat_cutoff_index = len(result_category_frequencies) - int(len(result_category_frequencies)*(.69))
+        key_cutoff_value = result_category_frequencies[key_cat_cutoff_index]['count'] if len(result_category_frequencies)>0 else len(result_variables)
+        result_category_frequencies = [ cat for cat in result_category_frequencies if cat['count']>=key_cutoff_value and not re.match(r'\b(?:NoneThese|NoneAbove|None|NoAnswer|NoneOfThese)\b',cat['name'],flags=re.I) ]
+        result_category_frequencies = [ cat['name'] for cat in result_category_frequencies ]
+        result_categories = result_category_frequencies
 
     result_debug_data = {
         'key_categories': sorted( [ cat for _,cat in dict_categories.items() if 'w' in cat ], key=lambda c: -c['w'] ),

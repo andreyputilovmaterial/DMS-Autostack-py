@@ -62,6 +62,23 @@ def entry_point(*argcs, **kwargs):
         required=False
     )
     parser.add_argument(
+        '--config-category-mode',
+        help='Category list mode: "intersection" (shared stubs only) or "union" '
+             '(all categories across the selected questions). Defaults per algorithm.',
+        type=str,
+        choices=['intersection', 'union'],
+        default=None,
+        required=False
+    )
+    parser.add_argument(
+        '--config-category-min-frequency',
+        help='Only for "union" mode: keep categories used by at least this '
+             'fraction (0..1) of the selected questions. Omit for no filter.',
+        type=float,
+        default=None,
+        required=False
+    )
+    parser.add_argument(
         '--output-filename',
         help='Set preferred output file name, with path',
         type=str,
@@ -80,6 +97,10 @@ def entry_point(*argcs, **kwargs):
     if args.config_priority_categories:
         config['priority_categories_str'] = args.config_priority_categories
     config['algorithm_ver'] = args.config_algorithm_ver
+    if args.config_category_mode:
+        config['category_mode'] = args.config_category_mode
+    if args.config_category_min_frequency is not None:
+        config['category_min_frequency'] = args.config_category_min_frequency
 
     result_final_fname = None
     if args.output_filename:
