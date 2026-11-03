@@ -1,9 +1,9 @@
 """Tests for ``mdd-autostk-identify-variables`` (step 02).
 
-Covers the algorithm-version dispatch: ``v1`` (default) produces a single
-variable/category spec, and ``v2`` produces multiple candidate groups ranked
-best-first. Both are driven through the real launcher via a subprocess so the
-three-way import and dispatch paths are exercised end to end.
+Covers the algorithm-version dispatch: ``v2`` (default) produces multiple
+candidate groups ranked best-first, and ``v1`` produces a single
+variable/category spec. Both are driven through the real launcher via a
+subprocess so the three-way import and dispatch paths are exercised end to end.
 
 ``v2`` is additionally exercised directly (no subprocess) to verify that it is
 **name-invariant**: renaming a category must not change the result.
@@ -49,7 +49,7 @@ def _run_identify_variables(algorithm_ver=None):
 
 
 class TestIdentifyVariablesDispatch(unittest.TestCase):
-    def test_v1_is_default_and_writes_result(self):
+    def test_v2_is_default_and_writes_result(self):
         proc, out_path, tmpdir = _run_identify_variables()
         try:
             self.assertEqual(proc.returncode, 0, msg=proc.stderr)
@@ -57,7 +57,7 @@ class TestIdentifyVariablesDispatch(unittest.TestCase):
             result = json.loads(out_path.read_text(encoding="utf-8"))
             for key in ("variables", "categories", "algorithm_ver"):
                 self.assertIn(key, result)
-            self.assertEqual(result["algorithm_ver"], "v1")
+            self.assertEqual(result["algorithm_ver"], "v2")
         finally:
             tmpdir.cleanup()
 
@@ -113,6 +113,17 @@ class TestV2NameInvariance(unittest.TestCase):
         for name in ("none", "noneofthese", "noneofabove", "noneabove", "none67",
                      "other", "prefernotsay", "nike", "yes", "no", "_1", "1"):
             self.assertEqual(v2._category_quality(name, []), 1.0)
+
+    def test_v2_score_tradeoff(self):
+        # More questions with a solid stub set beats fewer questions with more stubs.
+        self.assertGreater(
+            v2._group_score(20, [1.0] * 6), v2._group_score(10, [1.0] * 12)
+        )
+        # But fewer questions with a solid stub set beats many questions with
+        # only a couple of stubs (the junk discount makes 2-3 stubs weak).
+        self.assertGreater(
+            v2._group_score(10, [1.0] * 6), v2._group_score(20, [1.0] * 3)
+        )
 
     def test_v2_is_name_invariant(self):
         questions, categories = self._build_model()

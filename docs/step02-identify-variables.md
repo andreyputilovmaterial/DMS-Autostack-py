@@ -158,7 +158,7 @@ The model is a plain-dict contract. `v1` and `v2` both accept
 
 ## 4. Algorithm versioning
 
-The CLI accepts `--config-algorithm-ver {v1,v2}` (default `v1`). Each version is
+The CLI accepts `--config-algorithm-ver {v1,v2}` (default `v2`). Each version is
 its own package under `algorithms/` and exposes the same
 `find_variables_to_stack(dict_questions, dict_categories, config)` signature:
 
@@ -196,9 +196,12 @@ candidate is a group of categories plus the questions that use all of them.
    each set, the group's questions are those using every category in it.
 3. **Collapse to closed groups.** For each question-set keep the maximal
    category-set (the largest shared list).
-4. **Score.** `score = questions^2 × effective_categories`, where
-   `effective_categories` saturates toward `10` (diminishing returns), so "few
-   questions × huge list" is not rewarded linearly.
+4. **Score.** `score = questions^QUESTION_EXPONENT × effective_categories`.
+   `effective_categories` discounts the category count by a per-category junk
+   probability (`(1 − JUNK_PROBABILITY) × count`) and then saturates smoothly
+   toward `CATEGORY_SATURATION`. `QUESTION_EXPONENT < 1` (sublinear) keeps the
+   question count from dominating, and the junk discount makes 2–3 stubs much
+   weaker than ~6+ stubs.
 5. **Emit.** Top `20` candidates, best first; `categories`/`variables` at the
    top level mirror the best candidate for backward compatibility with step 03.
 
@@ -218,8 +221,9 @@ Output shape:
 ```
 
 Coefficients (module constants in `algorithms/v2/find_variables_stack.py`):
-`QUESTION_EXPONENT=2`, `CATEGORY_SATURATION=10`, `PRIORITY_PENALTY=0.3`,
-`MIN_CATEGORIES=2`, `MIN_QUESTIONS=2`, `MAX_CANDIDATES=20`.
+`QUESTION_EXPONENT=0.85`, `CATEGORY_SATURATION=10`, `JUNK_PROBABILITY=0.5`,
+`PRIORITY_PENALTY=0.3`, `MIN_CATEGORIES=2`, `MIN_QUESTIONS=2`,
+`MAX_CANDIDATES=20`.
 
 ---
 

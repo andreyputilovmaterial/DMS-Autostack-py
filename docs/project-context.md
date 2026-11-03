@@ -89,7 +89,7 @@ data. It reads an `.mdd` file, decides which questions/loops to stack, produces
   - `algorithms/v2/` — clean-room re-implementation returning ranked candidate
     groups (multiple candidates, best first; see
     `docs/step02-identify-variables.md` §5).
-- Added `--config-algorithm-ver {v1,v2}` (default `v1`) to the
+- Added `--config-algorithm-ver {v1,v2}` (default `v2`) to the
   `mdd-autostk-identify-variables` entry point; the version is echoed into the
   output as `algorithm_ver`. Versions are separate packages with no cross-imports
   and no fallback.
@@ -125,6 +125,27 @@ data. It reads an `.mdd` file, decides which questions/loops to stack, produces
   assertion and added `TestV2NameInvariance` (neutral weight for special names
   + full-algorithm name-invariance check).
 - Updated `docs/step02-identify-variables.md` §5/§6 accordingly.
+
+## 2026-11-03 v2 scoring: junk-probability discount + sublinear question exponent
+
+- Replaced v2's `questions² × effective_categories` objective with
+  `questions^0.85 × saturate((1 − 0.5) × category_count)`. The category count is
+  now discounted by a per-category junk prior (`JUNK_PROBABILITY=0.5`) before a
+  smooth `1 − e^(−x/10)` saturation, and the question exponent is sublinear
+  (`QUESTION_EXPONENT=0.85`) so "many questions × 2-3 stubs" no longer dominates.
+  Still name-invariant and smooth (no hard thresholds).
+- Validated on the real fixture `tests-real-sensitive-data/a2_v1.mdd.json`
+  (gitignored): the baseline v2 picked the `{yes, no}` block (100 questions × 2
+  categories); the new scoring drops it entirely and surfaces brand stubs
+  (e.g. the `brandfamiliarity` block) and product stubs (`disprodopinion`) as the
+  top candidates. Country blocks (`br`/`cn`/`de`/…) still rank #1-2 — a real
+  shared block, but not in the routing table's brand/product list.
+- Open tension: the same scoring on `tests/fixtures/a1_v3.mdd.json` promotes the
+  62-category × 3-question state list over the 6 brands. Reconciling "20×3 loses
+  to 10×6" with "5×6 beats 3×62" needs a steeper saturation (`CATEGORY_SATURATION`
+  ≈ 3, not 10); not yet decided — left `CATEGORY_SATURATION=10` for now.
+- Added `test_v2_score_tradeoff` locking in the two numeric targets
+  (`20×6 > 10×12`, `10×6 > 20×3`).
 
 ## Repository rules
 

@@ -21,8 +21,9 @@ How it works (high level):
    the group's questions are those that use *every* category in the set.
 3. Keep only "closed" groups: for each question-set, keep the largest
    category-set (the maximal shared list).
-4. Score each group with a tunable objective that balances question count and
-   shared-category count, then return the top candidates best-first.
+4. Score each group as ``questions^QUESTION_EXPONENT × effective_categories``,
+   where the category count is discounted by a per-category junk probability
+   and saturated smoothly, then return the top candidates best-first.
 
 The coefficients below are the whole tuning surface — see
 ``docs/step02-identify-variables.md`` for the trade-off discussion.
@@ -32,8 +33,9 @@ import math
 
 
 # --- tunable coefficients ------------------------------------------------
-QUESTION_EXPONENT = 2.0        # how strongly question count weighs
-CATEGORY_SATURATION = 10.0     # categories contribute up to ~this many
+QUESTION_EXPONENT = 0.85       # how strongly question count weighs (sublinear)
+CATEGORY_SATURATION = 10.0     # categories contribute up to ~this many (smooth)
+JUNK_PROBABILITY = 0.5         # prior prob. each category is junk (discounts the count)
 PRIORITY_PENALTY = 0.3         # penalty for non-priority categories (when given)
 MIN_CATEGORIES = 2             # minimum categories for a candidate group
 MIN_QUESTIONS = 2              # minimum questions for a candidate group
@@ -55,23 +57,26 @@ def _category_quality(name, priority_categories):
 
 
 def _category_effective(qualities):
-    """Combine category weights with diminishing returns.
+    """Combine category weights with diminishing returns and a junk discount.
 
-    Saturates toward ``CATEGORY_SATURATION`` so that "few questions sharing a
-    huge category list" is not rewarded linearly past roughly ten categories.
+    Each category is assumed to be junk with prior probability
+    ``JUNK_PROBABILITY``, so the expected number of *meaningful* categories in
+    the group is ``(1 - JUNK_PROBABILITY) * sum(qualities)``. That count is then
+    fed through a smooth saturation (no hard cutoff) so that a few categories
+    contribute little while roughly ten or more approach the ceiling.
     """
-    total = sum(qualities)
-    return CATEGORY_SATURATION * (1.0 - math.exp(-total / CATEGORY_SATURATION))
+    real = (1.0 - JUNK_PROBABILITY) * sum(qualities)
+    return CATEGORY_SATURATION * (1.0 - math.exp(-real / CATEGORY_SATURATION))
 
 
 def _group_score(num_questions, qualities):
     """Score a candidate group.
 
     The objective is ``questions^QUESTION_EXPONENT * effective_categories``: a
-    weighted product of "how many questions share the categories" and "how many
-    useful categories they share". Both extremes — few questions with a long
-    list, or many questions with only 2-3 categories — score lower than the
-    ideal of many questions sharing ~ten categories.
+    product of "how many questions share the categories" and "how many useful
+    (non-junk) categories they share". ``QUESTION_EXPONENT < 1`` keeps the
+    question count from dominating, so a block of many questions with only 2-3
+    categories loses to fewer questions sharing a larger set of categories.
     """
     return (num_questions ** QUESTION_EXPONENT) * _category_effective(qualities)
 
@@ -147,6 +152,7 @@ def find_variables_to_stack(dict_questions, dict_categories, config={}):
             'config': {
                 'question_exponent': QUESTION_EXPONENT,
                 'category_saturation': CATEGORY_SATURATION,
+                'junk_probability': JUNK_PROBABILITY,
                 'priority_penalty': PRIORITY_PENALTY,
                 'min_categories': MIN_CATEGORIES,
                 'min_questions': MIN_QUESTIONS,

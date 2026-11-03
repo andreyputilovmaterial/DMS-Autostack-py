@@ -55,10 +55,10 @@ def entry_point(*argcs, **kwargs):
     )
     parser.add_argument(
         '--config-algorithm-ver',
-        help='Algorithm version: v1 (default) or v2 (ranked candidate groups)',
+        help='Algorithm version: v2 (default, ranked candidate groups) or v1 (single best match)',
         type=str,
         choices=list(ALGORITHM_IMPL.keys()),
-        default='v1',
+        default='v2',
         required=False
     )
     parser.add_argument(
