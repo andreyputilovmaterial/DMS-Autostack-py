@@ -111,6 +111,21 @@ data. It reads an `.mdd` file, decides which questions/loops to stack, produces
   `.isnumeric` (missing `()`) quirk in the `num_categories_pick` normalization;
   left untouched to avoid a behavior change.
 
+## 2026-11-03 v2 name-invariance correction
+
+- `algorithms/v2/find_variables_stack.py` no longer hard-codes special
+  category names. Removed `_JUNK_RE`/`_SCALE_RE` and the `JUNK_RATIO`/
+  `SCALE_RATIO` coefficients; `_category_quality` now only applies the explicit
+  `priority_categories` penalty. v2 is **name-invariant**: renaming a category
+  (`none`, `noneofthese`, `noneabove`, `none67`, …) never changes the result.
+- Consequence on `tests/fixtures/a1_v3.mdd.json`: v2 now returns the
+  structurally largest group `{NoneAbove, OtherSpec}` (8 shared questions)
+  instead of the six brands. v1 is unchanged and still selects the brands.
+- Updated `tests/test_step02_identify_variables.py`: dropped the v2 brand
+  assertion and added `TestV2NameInvariance` (neutral weight for special names
+  + full-algorithm name-invariance check).
+- Updated `docs/step02-identify-variables.md` §5/§6 accordingly.
+
 ## Repository rules
 
 See `.clinerules/`.

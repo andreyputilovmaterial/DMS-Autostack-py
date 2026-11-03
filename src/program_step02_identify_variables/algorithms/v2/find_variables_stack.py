@@ -7,10 +7,15 @@ Unlike ``v1`` (which returns a single best match), ``v2`` enumerates multiple
 candidate groups and returns them ranked best-first. Each candidate is a group
 of categories plus the questions that use every one of them.
 
+The algorithm is **name-invariant**: apart from an optional explicit
+``priority_categories`` config list, the result depends only on the *structure*
+of the scheme (which questions share which categories) and never on how a
+category is spelled. A category called ``None``, ``NoneOfThese``,
+``NoneAbove`` or ``none67`` is weighted exactly like any other category.
+
 How it works (high level):
 
-1. Drop questions flagged ``skip`` and penalise junk categories
-   (``Other``/``None``/... and scale-like names) so they don't dominate.
+1. Drop questions flagged ``skip``.
 2. Enumerate candidate category-sets as the intersections of question category
    lists, for single questions and every question pair. For each candidate set,
    the group's questions are those that use *every* category in the set.
@@ -24,38 +29,28 @@ The coefficients below are the whole tuning surface — see
 """
 
 import math
-import re
 
 
 # --- tunable coefficients ------------------------------------------------
 QUESTION_EXPONENT = 2.0        # how strongly question count weighs
 CATEGORY_SATURATION = 10.0     # categories contribute up to ~this many
-JUNK_RATIO = 0.15              # weight of Other/None junk categories
-SCALE_RATIO = 0.3              # weight of numeric / yes-no scale categories
 PRIORITY_PENALTY = 0.3         # penalty for non-priority categories (when given)
 MIN_CATEGORIES = 2             # minimum categories for a candidate group
 MIN_QUESTIONS = 2              # minimum questions for a candidate group
 MAX_CANDIDATES = 20            # how many candidates to emit
 
 
-_JUNK_RE = re.compile(r'(other|none|prefernotsay)', re.IGNORECASE)
-_SCALE_RE = re.compile(r'^_?\d+$|^(yes|no)$', re.IGNORECASE)
-
-
 def _category_quality(name, priority_categories):
     """Return a per-category weight in ``(0, 1]``.
 
-    Junk categories (Other/None/...), scale categories (``_1``, ``Yes``/``No``)
-    and — when a priority list is supplied — non-priority categories are
-    down-weighted so they don't form deceptively large groups.
+    The only name-dependent adjustment is the explicit, user-supplied
+    ``priority_categories`` list. Every other category gets a neutral weight of
+    ``1.0`` regardless of how it is spelled, so renaming a category never
+    changes the result.
     """
     quality = 1.0
     if priority_categories and name.lower() not in priority_categories:
         quality *= PRIORITY_PENALTY
-    if _JUNK_RE.search(name):
-        quality *= JUNK_RATIO
-    elif _SCALE_RE.match(name):
-        quality *= SCALE_RATIO
     return quality
 
 
@@ -152,8 +147,6 @@ def find_variables_to_stack(dict_questions, dict_categories, config={}):
             'config': {
                 'question_exponent': QUESTION_EXPONENT,
                 'category_saturation': CATEGORY_SATURATION,
-                'junk_ratio': JUNK_RATIO,
-                'scale_ratio': SCALE_RATIO,
                 'priority_penalty': PRIORITY_PENALTY,
                 'min_categories': MIN_CATEGORIES,
                 'min_questions': MIN_QUESTIONS,

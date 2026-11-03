@@ -186,9 +186,11 @@ best match it returns **multiple candidate groups ranked best-first**; each
 candidate is a group of categories plus the questions that use all of them.
 
 1. **Prepare.** Drop questions flagged `skip`; weight each category with
-   `_category_quality`: junk names (`Other`/`None`/`PreferNotSay`) → `0.15`,
-   scale names (`_1`, `Yes`/`No`) → `0.3`, otherwise `1.0` (non-priority
-   categories get `×0.3` when a priority list is supplied).
+   `_category_quality`: `1.0` for every category, except that non-priority
+   categories get `×0.3` when a priority list is supplied. There is no special
+   treatment for names such as `None`, `Other`, `PreferNotSay`, `_1` or
+   `Yes`/`No` — the algorithm is **name-invariant**, so renaming a category
+   never changes the result.
 2. **Enumerate candidates.** Candidate category-sets are the intersections of
    question category lists, for single questions and every question pair. For
    each set, the group's questions are those using every category in it.
@@ -216,9 +218,8 @@ Output shape:
 ```
 
 Coefficients (module constants in `algorithms/v2/find_variables_stack.py`):
-`QUESTION_EXPONENT=2`, `CATEGORY_SATURATION=10`, `JUNK_RATIO=0.15`,
-`SCALE_RATIO=0.3`, `PRIORITY_PENALTY=0.3`, `MIN_CATEGORIES=2`,
-`MIN_QUESTIONS=2`, `MAX_CANDIDATES=20`.
+`QUESTION_EXPONENT=2`, `CATEGORY_SATURATION=10`, `PRIORITY_PENALTY=0.3`,
+`MIN_CATEGORIES=2`, `MIN_QUESTIONS=2`, `MAX_CANDIDATES=20`.
 
 ---
 
@@ -237,4 +238,10 @@ six brand categories `Nike`, `Tesla`, `CocaCola`, `Select`, `YesStream`,
 
 `v1` selects the expected six brands, verified by
 `tests/test_step02_identify_variables.py`.
+
+Because `v2` is name-invariant, it deliberately ignores the "junk" naming and
+returns the structurally largest group instead: on this fixture that is the
+`OtherSpec` / `NoneAbove` pair (shared by 8 questions) rather than the six
+brands (shared by 5 questions). `v1` keeps its name-based junk/scale penalties
+and therefore still selects the six brands.
 
