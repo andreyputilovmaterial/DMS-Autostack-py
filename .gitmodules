@@ -1,12 +1,12 @@
 [submodule "src/lib/mdmread"]
 	path = src/lib/mdmreadpy
 	url = https://github.com/andreyputilovmaterial/MDM-Read-py.git
-[submodule "src-make/lib/pinliner"]
-	path = src-make/lib/pinliner
-	url = https://github.com/The-city-not-present/pinliner.git
 [submodule "src/lib/mdmpatchpy"]
 	path = src/lib/mdmpatchpy
 	url = https://github.com/andreyputilovmaterial/MDM-Patchtools-py.git
 [submodule "src/lib/mdmreport_excel"]
 	path = src/lib/mdmreport_excel
 	url = https://github.com/andreyputilovmaterial/MDM-ExcelReport-py.git
+[submodule "src_dev_build/pinliner"]
+	path = src_dev_build/lib/pinliner
+	url = https://github.com/The-city-not-present/pinliner.git

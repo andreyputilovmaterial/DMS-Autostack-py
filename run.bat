@@ -115,41 +115,44 @@ SET "MDD_FILE_TEMP_STEP402=%MDD_FILE%_402_temp.dms"
 SET "MDD_FILE_RESULT_STEP401=%OUT_PATH_AND_NAME%_401_STKPrep.dms"
 SET "MDD_FILE_RESULT_STEP402=%OUT_PATH_AND_NAME%_402_STKCreate.dms"
 
+CALL "run_init.bat"
+if errorlevel 1 exit /b %errorlevel%
+
 ECHO -
 ECHO 1. read MDD
 ECHO read from: %MDD_FILE%
 ECHO write to: .json
-python dist/mdmautostktoolsap_bundle.py --program read_mdd --mdd "%MDD_FILE%" --config-features label,attributes,properties,scripting --config-section fields --config-contexts Analysis,Question
+.venv\Scripts\python.exe dist/mdmautostktoolsap_bundle.py --program read_mdd --mdd "%MDD_FILE%" --config-features label,attributes,properties,scripting --config-sections fields --config-contexts Analysis,Question
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
 
 IF %CONFIG_PRODUCE_HTML_MDD% (
     ECHO -
     ECHO 1.1. generate html
-    python dist/mdmautostktoolsap_bundle.py --program report --inpfile "%MDD_FILE_SCHEME%"
+    .venv\Scripts\python.exe dist/mdmautostktoolsap_bundle.py --program report --inpfile "%MDD_FILE_SCHEME%"
     if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
 )
 IF %CONFIG_PRODUCE_EXCEL_MDD% (
     ECHO -
     ECHO 1.1. generate excel
-    python dist/mdmautostktoolsap_bundle.py --program report_excel --inpfile "%MDD_FILE_SCHEME%"
+    .venv\Scripts\python.exe dist/mdmautostktoolsap_bundle.py --program report_excel --inpfile "%MDD_FILE_SCHEME%"
     if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
 )
 
 ECHO -
 ECHO 2. decide on which questions and loops should be stacked
-python dist/mdmautostktoolsap_bundle.py --program mdd-autostk-identify-variables --inp-mdd-scheme "%MDD_FILE_SCHEME%" %CONFIG_PREFER_CATEGORIES% --output-filename "%MDD_FILE_VARIABLES%"
+.venv\Scripts\python.exe dist/mdmautostktoolsap_bundle.py --program mdd-autostk-identify-variables --inp-mdd-scheme "%MDD_FILE_SCHEME%" %CONFIG_PREFER_CATEGORIES% --output-filename "%MDD_FILE_VARIABLES%"
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
 
 ECHO -
 ECHO 3. generate patch file
-python dist/mdmautostktoolsap_bundle.py --program mdd-autostk-prepare-patch --inp-mdd-scheme "%MDD_FILE_SCHEME%" --var-list "%MDD_FILE_VARIABLES%" %CONFIG_CODESTYLE_OPTIONS% --output-patch-401 "%MDD_FILE_PATCH_STEP401%" --output-patch-402 "%MDD_FILE_PATCH_STEP402%"
+.venv\Scripts\python.exe dist/mdmautostktoolsap_bundle.py --program mdd-autostk-prepare-patch --inp-mdd-scheme "%MDD_FILE_SCHEME%" --var-list "%MDD_FILE_VARIABLES%" %CONFIG_CODESTYLE_OPTIONS% --output-patch-401 "%MDD_FILE_PATCH_STEP401%" --output-patch-402 "%MDD_FILE_PATCH_STEP402%"
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
 
 ECHO -
 ECHO 4. temporary files with base templates
-python dist/mdmautostktoolsap_bundle.py --program mdd-autostk-write-template --action template-401 --output-filename "%MDD_FILE_TEMP_STEP401%"
+.venv\Scripts\python.exe dist/mdmautostktoolsap_bundle.py --program mdd-autostk-write-template --action template-401 --output-filename "%MDD_FILE_TEMP_STEP401%"
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
-python dist/mdmautostktoolsap_bundle.py --program mdd-autostk-write-template --action template-402 --output-filename "%MDD_FILE_TEMP_STEP402%"
+.venv\Scripts\python.exe dist/mdmautostktoolsap_bundle.py --program mdd-autostk-write-template --action template-402 --output-filename "%MDD_FILE_TEMP_STEP402%"
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
 
 ECHO -
@@ -158,13 +161,13 @@ ECHO 5. patch templates and save as final files
 ECHO -
 ECHO 5.401 - 401_PreStack.dms script
 
-python dist/mdmautostktoolsap_bundle.py --program mdd-patch --inp-filename "%MDD_FILE_TEMP_STEP401%" --inp-type dms --patch "%MDD_FILE_PATCH_STEP401%" --output-filename "%MDD_FILE_RESULT_STEP401%"
+.venv\Scripts\python.exe dist/mdmautostktoolsap_bundle.py --program mdd-patch --inp-filename "%MDD_FILE_TEMP_STEP401%" --inp-type dms --patch "%MDD_FILE_PATCH_STEP401%" --output-filename "%MDD_FILE_RESULT_STEP401%"
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
 
 ECHO -
 ECHO 5.402 - 402_Stack.dms script
 
-python dist/mdmautostktoolsap_bundle.py --program mdd-patch --inp-filename "%MDD_FILE_TEMP_STEP402%" --inp-type dms --patch "%MDD_FILE_PATCH_STEP402%" --output-filename "%MDD_FILE_RESULT_STEP402%"
+.venv\Scripts\python.exe dist/mdmautostktoolsap_bundle.py --program mdd-patch --inp-filename "%MDD_FILE_TEMP_STEP402%" --inp-type dms --patch "%MDD_FILE_PATCH_STEP402%" --output-filename "%MDD_FILE_RESULT_STEP402%"
 if %ERRORLEVEL% NEQ 0 ( echo ERROR: Failure && pause && goto CLEANUP && exit /b %errorlevel% )
 
 

@@ -1,0 +1,15 @@
+# Runtime dependencies (pip-installable packages), one per line.
+# Install with:  pip install -r requirements.txt
+#
+# The core bundle is intentionally dependency-free beyond the Python standard
+# library: src/launcher.py imports readers/reporters lazily, so basic workflows
+# run without any third-party packages. This comment-only file is a no-op for
+# `pip install -r`.
+#
+# Optional, platform-specific, and heavy dependencies are intentionally NOT listed
+# here. Each reader/reporter declares its own requirements in a requirements.txt
+# under src/lib/; at build time build.bat/build.sh parse those into explicit
+# `pip install` rows and inline them (best-effort) into each distributed launcher.
+# A missing optional dependency only disables the program that needs it, and only
+# when you actually run it (e.g. pywin32 for MDD reading on Windows,
+# pandas/xlsxwriter for the Excel report).

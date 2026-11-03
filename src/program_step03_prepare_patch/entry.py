@@ -33,7 +33,7 @@ else:
 
 
 
-def entry_point(runscript_config={}):
+def entry_point(*argcs, **kwargs):
 
     time_start = datetime.now()
     script_name = 'mdmautostktoolsap mdd stk generate patch script'
@@ -73,12 +73,7 @@ def entry_point(runscript_config={}):
         type=str,
         required=False
     )
-    args = None
-    args_rest = None
-    if( ('arglist_strict' in runscript_config) and (not runscript_config['arglist_strict']) ):
-        args, args_rest = parser.parse_known_args()
-    else:
-        args = parser.parse_args()
+    args = parser.parse_args(*argcs, **kwargs)
     
     inp_filename = ''
     if args.inp_mdd_scheme:
@@ -177,4 +172,4 @@ def entry_point(runscript_config={}):
 
 
 if __name__ == '__main__':
-    entry_point({'arglist_strict':True})
+    entry_point()

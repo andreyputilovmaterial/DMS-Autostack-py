@@ -18,3 +18,5 @@ report.*
 
 examples/
 dist/
+**/GENERATED/
+.venv/
