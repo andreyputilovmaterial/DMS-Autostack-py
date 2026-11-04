@@ -21,15 +21,16 @@ def _import_module(flat_name):
     # optional third-party dependencies (pywin32, pandas, xlsxwriter, ...).
     # `flat_name` is the module's dotted path below the launcher package, e.g.
     # 'lib.mdmreadpy.src.read_mdd' or 'program_step03_prepare_patch.entry'.
-    # Mirrors the three-way conditional import used by entry-point scripts.
-    if __name__ == '__main__':
-        # run as a program
-        return importlib.import_module(flat_name)
-    elif '.' in __name__:
-        # package
+    # Imports are selected on `__package__` (set reliably by the import system in
+    # every case), not `__name__`:
+    #   * `__package__` truthy  ->  relative import (`python -m src.launcher`, or
+    #     imported via the pinliner bundle).
+    #   * `__package__` falsy   ->  flat import (inlined with no parent package).
+    if __package__:
+        # package context
         return importlib.import_module('.' + flat_name, package=__package__)
     else:
-        # included with no parent package
+        # flat context: no parent package
         return importlib.import_module(flat_name)
 
 

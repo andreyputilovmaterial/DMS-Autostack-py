@@ -9,16 +9,12 @@ import json
 
 
 
-if __name__ == '__main__':
-    # run as a program
-    import template_401
-    import template_402
-elif '.' in __name__:
-    # package
+if __package__:
+    # package context
     from . import template_401
     from . import template_402
 else:
-    # included with no parent package
+    # flat context: no parent package
     import template_401
     import template_402
 

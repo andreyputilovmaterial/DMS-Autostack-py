@@ -38,13 +38,13 @@ template (`mdd-patch`) to produce the two final `.dms` scripts.
 Each program is invoked the same way, either from source:
 
 ```bash
-python src/launcher.py --program <name> [options...]
+python -m src.launcher --program <name> [options...]
 ```
 
 or
 
 ```bash
-python src/path/to/program.py [options...]
+python -m src.path.to.program [options...]
 ```
 
 or against the built single-file bundle:
@@ -71,7 +71,7 @@ An `.mdd` file (binary, proprietary). There is no text "minimal example" for the
 input itself; the minimal invocation is:
 
 ```bash
-python src/launcher.py --program read_mdd --mdd "R123456.mdd"
+python -m src.launcher --program read_mdd --mdd "R123456.mdd"
 ```
 
 ### Minimal output
@@ -137,7 +137,7 @@ Unnecessary but can be used to browse contents of input MDD.
 A `read_mdd` JSON file:
 
 ```bash
-python src/launcher.py --program report --inpfile "R123456.mdd.json"
+python -m src.launcher --program report --inpfile "R123456.mdd.json"
 ```
 
 ### Minimal output
@@ -167,7 +167,7 @@ Unnecessary but can be used to browse contents of input MDD.
 ### Minimal input
 
 ```bash
-python src/launcher.py --program report_excel --inpfile "R123456.mdd.json"
+python -m src.launcher --program report_excel --inpfile "R123456.mdd.json"
 ```
 
 ### Minimal output
@@ -216,7 +216,7 @@ A `read_mdd` JSON with at least a `fields` section:
 ```
 
 ```bash
-python src/launcher.py --program mdd-autostk-identify-variables \
+python -m src.launcher --program mdd-autostk-identify-variables \
   --inp-mdd-scheme "R123456.mdd.json" \
   --output-filename "R123456.mdd-stack-var-list-suggested.json"
 ```
@@ -282,7 +282,7 @@ one for the `402_Stack` script.
 2. A step-02 variable spec (the `--output-filename` from step 02).
 
 ```bash
-python src/launcher.py --program mdd-autostk-prepare-patch \
+python -m src.launcher --program mdd-autostk-prepare-patch \
   --inp-mdd-scheme "R123456.mdd.json" \
   --var-list "R123456.mdd-stack-var-list-suggested.json" \
   --output-patch-401 "R123456.mdd-patch-401.json" \
@@ -360,7 +360,7 @@ step-03 patches locate and edit. It takes no MDD input.
 ### Minimal input
 
 ```bash
-python src/launcher.py --program mdd-autostk-write-template \
+python -m src.launcher --program mdd-autostk-write-template \
   --action template-401 \
   --output-filename "R123456.mdd_401_temp.dms"
 ```
@@ -406,7 +406,7 @@ for 402.
 2. A patch JSON (from step 03).
 
 ```bash
-python src/launcher.py --program mdd-patch \
+python -m src.launcher --program mdd-patch \
   --inp-filename "R123456.mdd_401_temp.dms" \
   --inp-type dms \
   --patch "R123456.mdd-patch-401.json" \
@@ -434,7 +434,7 @@ the final script that IBM/Unicom Professional runs.
 | Program | Meaning |
 | --- | --- |
 | `test` | Prints a hello message; used as a wiring sanity check. |
-| `done` | Prints `done`; used as a dependency-free smoke test (`python src/launcher.py --program done`). |
+| `done` | Prints `done`; used as a dependency-free smoke test (`python -m src.launcher --program done`). |
 | `version` | Prints the build version string (`GENERATED/_VERSION.py`, or `unknown` before a build). |
 
 

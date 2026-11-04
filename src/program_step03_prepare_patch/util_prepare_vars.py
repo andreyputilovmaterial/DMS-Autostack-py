@@ -3,15 +3,7 @@ import re
 
 
 
-if __name__ == '__main__':
-    # run as a program
-    import util_vars
-elif '.' in __name__:
-    # package
-    from . import util_vars
-else:
-    # included with no parent package
-    import util_vars
+from . import util_vars
 
 
 

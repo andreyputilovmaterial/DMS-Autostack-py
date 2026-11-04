@@ -1,9 +1,10 @@
 """Entry point for ``mdd-autostk-identify-variables``.
 
-Starter script: it can be launched directly (``python entry.py``) or dispatched
-from the launcher, so it uses the three-way conditional import. It owns the CLI,
-JSON loading, adapter invocation and algorithm-version dispatch. The algorithm
-versions themselves are plain imported modules and must not be touched here.
+Starter script: it is dispatched from the launcher via ``--program`` and can be
+launched directly with ``python -m src.program_step02_identify_variables.entry``,
+so it selects its imports on ``__package__``. It owns the CLI, JSON loading,
+adapter invocation and algorithm-version dispatch. The algorithm versions
+themselves are plain imported modules and must not be touched here.
 """
 
 import argparse
@@ -12,15 +13,13 @@ from pathlib import Path
 import json
 
 
-if __name__ == '__main__':
-    from adapters import mdd_fields
-    from algorithms.v1 import find_variables_stack as find_variables_stack_v1
-    from algorithms.v2 import find_variables_stack as find_variables_stack_v2
-elif '.' in __name__:
+if __package__:
+    # package context
     from .adapters import mdd_fields
     from .algorithms.v1 import find_variables_stack as find_variables_stack_v1
     from .algorithms.v2 import find_variables_stack as find_variables_stack_v2
 else:
+    # flat context: no parent package
     from adapters import mdd_fields
     from algorithms.v1 import find_variables_stack as find_variables_stack_v1
     from algorithms.v2 import find_variables_stack as find_variables_stack_v2

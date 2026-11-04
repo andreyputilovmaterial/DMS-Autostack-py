@@ -31,7 +31,7 @@ data. It reads an `.mdd` file, decides which questions/loops to stack, produces
   venv+dependency preamble, and verify the bundle with `--program done`.
 - `run.bat` calls `run_init.bat` (venv setup + dependency install) and then runs the
   autostacking steps against the bundle.
-- `python src/launcher.py --program done` is a dependency-free smoke test.
+- `python -m src.launcher --program done` is a dependency-free smoke test.
 
 ## Programs (`--program`)
 
@@ -222,6 +222,26 @@ data. It reads an `.mdd` file, decides which questions/loops to stack, produces
   `a3_v1` and their known/unknown stacking expectations.
 - Both test classes skip automatically when the fixture files are absent, so a
   fresh clone / CI still runs green.
+
+## 2026-11-04 entry-point imports + pinliner `--main` (adopt maintenance-log)
+
+- Adopted `docs/maintenance-log.md` (cross-project structural-change log, copied
+  verbatim from the APQA repo).
+- Pulled submodules to latest: `mdmreadpy` (`f762cf9`), `mdmreport_excel`
+  (`a211b88`), `pinliner` (`7152465`); `mdmpatchpy` already current.
+- Entry-point modules now select imports on `__package__` (two-branch) instead of
+  the old three-branch `__name__` split: `src/launcher.py` (`_import_module`),
+  `src/program_step02_identify_variables/entry.py`,
+  `src/program_step03_prepare_patch/entry.py`,
+  `src/program_step04_write_template/templater.py`.
+- Internal step-03 modules that still used the three-branch split now use plain
+  relative imports: `patch_generate.py`, `util_prepare_vars.py`,
+  `util_produce_code_edits.py`.
+- Updated `build.sh`/`build.bat` to `--main src.launcher --main-attr main`; the
+  build no longer appends `from src import launcher` + `launcher.main()` to the
+  bundle (pinliner generates the entry point now).
+- Plain-script invocation is dropped — use `python -m src.<module>`. Updated
+  `.clinerules/02-python-portability.md` and `docs/pipeline-steps.md`.
 
 ## Repository rules
 

@@ -7,16 +7,12 @@ import re
 
 
 
-if __name__ == '__main__':
-    # run as a program
-    import patch_generate
-    import util_prepare_vars
-elif '.' in __name__:
-    # package
+if __package__:
+    # package context
     from . import patch_generate
     from . import util_prepare_vars
 else:
-    # included with no parent package
+    # flat context: no parent package
     import patch_generate
     import util_prepare_vars
 

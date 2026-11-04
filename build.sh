@@ -36,20 +36,8 @@ echo "Done"
 
 echo "-"
 echo "-"
-echo "Produce distributable .py bundle - calling pinliner..."
-python src_dev_build/lib/pinliner/pinliner/pinliner.py src -o dist/mdmautostktoolsap_bundle.py || fail
-echo "Done"
-
-echo "-"
-echo "-"
-echo "Patching mdmautostktoolsap_bundle.py..."
-cat >> dist/mdmautostktoolsap_bundle.py <<'EOF'
-# ...
-# print('within mdmautostktoolsap_bundle')
-from src import launcher
-launcher.main()
-# print('out of mdmautostktoolsap_bundle')
-EOF
+echo "Produce distributable .py bundle - calling pinliner (with --main entry point)..."
+python src_dev_build/lib/pinliner/pinliner/pinliner.py src -o dist/mdmautostktoolsap_bundle.py --main src.launcher --main-attr main || fail
 echo "Done"
 
 echo "-"

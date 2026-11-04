@@ -5,27 +5,11 @@ import sys # for error reporting - printing errors to stderr
 
 
 
-if __name__ == '__main__':
-    # run as a program
-    import patch_classes
-    import util_vars
-    import utility_performance_monitor
-    import util_produce_code_mdata as mdata_functions
-    import util_produce_code_edits as onc_functions # "onc" stands for "OnNextCase" event
-elif '.' in __name__:
-    # package
-    from . import patch_classes
-    from . import util_vars
-    from . import utility_performance_monitor
-    from . import util_produce_code_mdata as mdata_functions
-    from . import util_produce_code_edits as onc_functions # "onc" stands for "OnNextCase" event
-else:
-    # included with no parent package
-    import patch_classes
-    import util_vars
-    import utility_performance_monitor
-    import util_produce_code_mdata as mdata_functions
-    import util_produce_code_edits as onc_functions # "onc" stands for "OnNextCase" event
+from . import patch_classes
+from . import util_vars
+from . import utility_performance_monitor
+from . import util_produce_code_mdata as mdata_functions
+from . import util_produce_code_edits as onc_functions # "onc" stands for "OnNextCase" event
 
 
 

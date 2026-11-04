@@ -4,21 +4,9 @@ import re
 
 
 
-if __name__ == '__main__':
-    # run as a program
-    import patch_classes
-    import util_vars
-    import util_produce_code_edits_templates as templates
-elif '.' in __name__:
-    # package
-    from . import patch_classes
-    from . import util_vars
-    from . import util_produce_code_edits_templates as templates
-else:
-    # included with no parent package
-    import patch_classes
-    import util_vars
-    import util_produce_code_edits_templates as templates
+from . import patch_classes
+from . import util_vars
+from . import util_produce_code_edits_templates as templates
 
 
 
