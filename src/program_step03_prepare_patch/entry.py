@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 import argparse
 from pathlib import Path
 import json
+import re
 
 
 
@@ -62,6 +63,14 @@ def entry_point(*argcs, **kwargs):
         required=False
     )
     parser.add_argument(
+        '--config-stk-iteration-field',
+        help='Name of the generated field that stores the stacking iteration '
+             'index inside the outer stacking loop (default: STK_Iteration)',
+        type=str,
+        default='STK_Iteration',
+        required=False
+    )
+    parser.add_argument(
         '--output-patch-401',
         help='Set preferred output file name, with path,for patch file for 401_PreStack script',
         type=str,
@@ -102,6 +111,11 @@ def entry_point(*argcs, **kwargs):
         config['code_style'] = {
             'category_check': code_style_config,
         }
+
+    if args.config_stk_iteration_field:
+        if not re.match(r'^\w+$', args.config_stk_iteration_field):
+            raise ValueError('--config-stk-iteration-field: invalid field name: {s}'.format(s=args.config_stk_iteration_field))
+        config['stk_iteration_field'] = args.config_stk_iteration_field
 
     variable_specs = None
     variable_specs_file_name = None

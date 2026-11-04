@@ -22,7 +22,7 @@ fields
 (
 	STK_ID -
 	text[..255];
-    STK_Iteration -
+    <<STK_ITERATION_FIELD>> -
     categorical [1..1]
     {
         <<CATEGORIES>>
@@ -340,10 +340,11 @@ def sync_labels_and_key_spss_properties_from_mddreport(mdmitem,variable_record):
         pass
     return mdmitem
 
-def create_mdmvariable_outerstkloop( loop_name, mdmcategories, mdmdoc ):
+def create_mdmvariable_outerstkloop( loop_name, mdmcategories, mdmdoc, iteration_field_name='STK_Iteration' ):
     result_scripts = CONFIG_METADATA_LOOP_OUTERSTKLOOP
     categories_scripts = ',\n'.join( mdmcat.Script for mdmcat in mdmcategories )
     result_scripts = result_scripts.replace('<<stk_loopname>>',loop_name)
+    result_scripts = result_scripts.replace('<<STK_ITERATION_FIELD>>',iteration_field_name)
     result_scripts = result_scripts.replace('<<CATEGORIES>>',categories_scripts)
     variable_attrs_dict = {
         'type': 'loop',

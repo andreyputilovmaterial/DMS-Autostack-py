@@ -225,7 +225,9 @@ def generate_code_categories_containsany( variable_with_categories_name, categor
 
 
 def generate_patches_outerstkloop_walkthrough( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, config ):
-    template = templates.TEMPLATE_OUTERSTK_LOOP_CODE
+    template = {**templates.TEMPLATE_OUTERSTK_LOOP_CODE} # copy, not modify
+    iteration_field_name = (config or {}).get('stk_iteration_field', 'STK_Iteration')
+    template['code'] = template['code'].replace('<<STK_ITERATION_FIELD>>', iteration_field_name)
     yield from generate_patches( template, mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, mdmitem_unstk_iterlevel=mdmitem_unstk, config=config )
 
 def generate_patches_loop_unstack_structural( mdmitem_stk, mdmitem_unstk, stk_variable_name, stk_variable_path, unstk_variable_name, config ):

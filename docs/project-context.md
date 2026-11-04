@@ -1,6 +1,6 @@
 # Project Context — DMS-Autostack-py
 
-> Last updated: 2026-11-03
+> Last updated: 2026-11-04
 
 ## Purpose
 
@@ -189,6 +189,22 @@ data. It reads an `.mdd` file, decides which questions/loops to stack, produces
   `mdd-autostk-write-template`, `mdd-patch`) plus the `test`/`done`/`version`
   utilities. For each step it lists what it does, a minimal input example, the
   minimal output shape, and every accepted CLI config option.
+
+## 2026-11-04 configurable stacking iteration field (step 03)
+
+- `STK_Iteration` (the generated field that stores the stacking iteration index in
+  the outer `STKLoop`) was hardcoded in two places: the metadata template
+  `CONFIG_METADATA_LOOP_OUTERSTKLOOP` (`util_produce_code_mdata.py`) and the
+  generated code template `TEMPLATE_OUTERSTK_LOOP_CODE`
+  (`util_produce_code_edits_templates.py`).
+- Both now use a `<<STK_ITERATION_FIELD>>` placeholder, substituted from the new
+  CLI option `--config-stk-iteration-field` (default `STK_Iteration`, stored as
+  `config['stk_iteration_field']`). The name is validated as `^\w+$` in `entry.py`.
+- Threading: `entry.py` → `generate_patches_stk` → `process_outerloop` (passes it
+  to `create_mdmvariable_outerstkloop`) and `generate_patches_outerstkloop_walkthrough`
+  (replaces it in the code template before `generate_patches`).
+- `STK_ID` (the respondent-id/brand key) remains hardcoded; it can be parameterized
+  the same way if needed.
 
 ## Repository rules
 

@@ -20,8 +20,8 @@ cbrand = ccategorical(brand)
         ' STK_ID
         iter_stk.STK_ID = ctext(brand.name)+"_"+ctext(Respondent.ID)
         
-        ' STK_Iteration
-        iter_stk.STK_Iteration = cbrand
+        ' <<STK_ITERATION_FIELD>>
+        iter_stk.<<STK_ITERATION_FIELD>> = cbrand
         
         ' {@}
         

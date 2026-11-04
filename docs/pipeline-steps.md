@@ -330,6 +330,7 @@ Known actions: `insert`, `section/metadata/insert`, `section/onnextcase/insert`,
 | `--inp-mdd-scheme` (also `-1`) | path (required) | JSON produced by `read_mdd`. |
 | `--var-list` | path (required) | Step-02 variable spec JSON. |
 | `--config-code-style` | comma list | Generated-code style flags (see below). |
+| `--config-stk-iteration-field` | name (default `STK_Iteration`) | Name of the generated field that stores the stacking iteration index inside the outer stacking loop. |
 | `--output-patch-401` | path (required) | Patch file for the 401 script. |
 | `--output-patch-402` | path (required) | Patch file for the 402 script. |
 

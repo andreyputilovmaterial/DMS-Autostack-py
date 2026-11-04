@@ -329,7 +329,7 @@ def process_outerloop(name,key_categories,category_records,mdmdoc_stk,get_list_e
     print_log_processing('categories')
     mdmcategories = generate_stkcategories_metadata(key_categories,category_records,mdmdoc_stk)
     print_log_processing('top level stacking loop')
-    mdmitem_stk = mdata_functions.create_mdmvariable_outerstkloop( name, mdmcategories, mdmdoc_stk )
+    mdmitem_stk = mdata_functions.create_mdmvariable_outerstkloop( name, mdmcategories, mdmdoc_stk, iteration_field_name=config.get('stk_iteration_field','STK_Iteration') )
     result_metadata = mdmitem_stk.Script
     # add defines
     assert re.match(r'^\w+$',name,flags=re.I), 'adding #define STKLoop: STKLoop name does not pass validation ({s})'.format(s=name)
