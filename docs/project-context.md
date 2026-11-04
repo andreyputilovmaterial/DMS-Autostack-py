@@ -206,6 +206,23 @@ data. It reads an `.mdd` file, decides which questions/loops to stack, produces
 - `STK_ID` (the respondent-id/brand key) remains hardcoded; it can be parameterized
   the same way if needed.
 
+## 2026-11-04 real/sensitive fixtures wired into tests
+
+- Added `tests/test_step02_real_fixtures.py` covering the real (gitignored)
+  fixtures under `tests-real-sensitive-data/`:
+  - `a2_v1.mdd.json` — smoke test only (no known stacking answer): asserts
+    step-02 runs and writes a valid `v2` spec, no category assertions.
+  - `a3_v1.mdd.json` — asserts the ranked candidates surface **both** a
+    brand-only group and a TCG-only group (parallel stacks, no single best
+    choice). Discriminator stubs: brand `magicgathering` vs TCG
+    `magicgatheringarena` / `magicgatheringttcg` — brands and TCGs are two mostly
+    overlapping but not 1:1 stub lists (`MagicGathering` → `MagicGatheringArena` +
+    `MagicGatheringTTCG`).
+- Added `tests-real-sensitive-data/README.md` documenting `a1_v3` / `a2_v1` /
+  `a3_v1` and their known/unknown stacking expectations.
+- Both test classes skip automatically when the fixture files are absent, so a
+  fresh clone / CI still runs green.
+
 ## Repository rules
 
 See `.clinerules/`.
