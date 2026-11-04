@@ -161,14 +161,14 @@ class TestCategoryMode(unittest.TestCase):
     @staticmethod
     def _model():
         questions = {
-            'q1': {'name': 'q1', 'iterations': ['aaa', 'bbb', 'ccc'], 'skip': False, 'is_assigner': False},
-            'q2': {'name': 'q2', 'iterations': ['aaa', 'bbb', 'ddd'], 'skip': False, 'is_assigner': False},
+            'q1': {'name': 'q1', 'iterations': ['aaa', 'bbb', 'ccc'], 'flags': {'skip': False, 'is_assigner': False}},
+            'q2': {'name': 'q2', 'iterations': ['aaa', 'bbb', 'ddd'], 'flags': {'skip': False, 'is_assigner': False}},
         }
         categories = {
-            'aaa': {'name': 'aaa', 'used': ['q1', 'q2']},
-            'bbb': {'name': 'bbb', 'used': ['q1', 'q2']},
-            'ccc': {'name': 'ccc', 'used': ['q1']},
-            'ddd': {'name': 'ddd', 'used': ['q2']},
+            'aaa': {'name': 'aaa', 'used': ['q1', 'q2'], 'flags': {}},
+            'bbb': {'name': 'bbb', 'used': ['q1', 'q2'], 'flags': {}},
+            'ccc': {'name': 'ccc', 'used': ['q1'], 'flags': {}},
+            'ddd': {'name': 'ddd', 'used': ['q2'], 'flags': {}},
         }
         return questions, categories
 
@@ -208,7 +208,7 @@ class TestCategoryListHelper(unittest.TestCase):
             'q2': {'name': 'q2', 'iterations': ['aaa', 'bbb', 'ccc', 'ddd']},
             'q3': {'name': 'q3', 'iterations': ['aaa', 'bbb', 'ccc', 'eee']},
         }
-        categories = {c: {'name': c} for c in ('aaa', 'bbb', 'ccc', 'ddd', 'eee')}
+        categories = {c: {'name': c, 'flags': {}} for c in ('aaa', 'bbb', 'ccc', 'ddd', 'eee')}
         return questions, categories
 
     def test_union_no_filter(self):

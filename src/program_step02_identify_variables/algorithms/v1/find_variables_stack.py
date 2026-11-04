@@ -62,7 +62,7 @@ def find_variables_to_stack(dict_questions,dict_categories,config={}):
         cat['w'] = CONFIG_CAT_WGT_START_WITH * find_adjusted_category_priority(cat,config)
     for _, q in dict_questions.items():
         q['w'] = CONFIG_INITIAL_Q_WGT
-        if q['is_assigner']:
+        if q['flags']['is_assigner']:
             q['w'] = 1 - (1-q['w'])*CONFIG_INCREASE_QWGT_IF_ASSIGNER
 
     # assign weights
@@ -178,7 +178,7 @@ def find_variables_to_stack(dict_questions,dict_categories,config={}):
             print('...{n} more warnings not shown'.format(n=len(QCLog)-CONFIG_MAX_WARNINGS))
 
     result = {
-        'variables': [ v for v in result_variables if not dict_questions[v]['skip'] ],
+        'variables': [ v for v in result_variables if not dict_questions[v]['flags']['skip'] ],
         'categories': result_categories,
         'variables_raw': result_variables,
         'variables_metadata': [ dict_questions[qname] for qname in dict.keys(dict_questions) if 'w' in dict_questions[qname] ],

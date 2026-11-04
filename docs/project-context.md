@@ -81,9 +81,9 @@ data. It reads an `.mdd` file, decides which questions/loops to stack, produces
 - Split `src/program_step02_identify_variables/` into an adapter layer and a
   versioned algorithm layer:
   - `adapters/` — `mdd_fields.py` (flattens the MDD JSON `fields` list into the
-    internal `questions`/`categories` model; precomputes `is_assigner`/`skip`),
-    `util_var_functions.py` (item-name parsing). Only this layer knows the JSON
-    report shape.
+    internal `questions`/`categories` model; precomputes `flags.is_assigner` /
+    `flags.skip`), `util_var_functions.py` (item-name parsing). Only this layer
+    knows the JSON report shape.
   - `algorithms/v1/` — the previous `find_variables_stack.py` algorithm, now
     consuming the model (plain relative imports / stdlib only).
   - `algorithms/v2/` — clean-room re-implementation returning ranked candidate
@@ -167,6 +167,19 @@ data. It reads an `.mdd` file, decides which questions/loops to stack, produces
 - Added `TestCategoryMode` and `TestCategoryListHelper` unit tests (minimal
   `q1={aaa,bbb,ccc}` / `q2={aaa,bbb,ddd}` model) covering both modes in both
   versions and the frequency threshold.
+
+## 2026-11-04 internal model: derivative flags grouped under `flags`
+
+- Updated the step-02 internal model contract so derivative indicators live in a
+  `flags` sub-dict instead of top-level keys:
+  - `questions[<name>]['flags']` now holds `is_assigner` and `skip` (previously
+    `questions[<name>]['is_assigner']` / `['skip']`).
+  - `categories[<name>]['flags']` is introduced as an empty placeholder for
+    future indicators.
+- `adapters/mdd_fields.build_model` populates the new shape; `v1` and `v2` now
+  read `q['flags']['is_assigner']` / `q['flags']['skip']` (v2 uses
+  `v.get('flags', {}).get('skip')`). Updated `docs/step02-identify-variables.md`
+  §3 and the minimal model in `tests/test_step02_identify_variables.py`.
 
 ## Repository rules
 

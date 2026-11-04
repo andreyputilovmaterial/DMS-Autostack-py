@@ -90,7 +90,7 @@ def find_variables_to_stack(dict_questions, dict_categories, config={}):
     min_frequency = config.get('category_min_frequency')
 
     # questions we are allowed to stack on
-    active = {q: v for q, v in dict_questions.items() if not v.get('skip')}
+    active = {q: v for q, v in dict_questions.items() if not v.get('flags', {}).get('skip')}
     active_keys = set(active.keys())
 
     # candidate category-sets: each question's own list + every pair intersection

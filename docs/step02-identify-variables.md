@@ -135,17 +135,22 @@ shape. It is separate from, and shared by, all algorithm versions.
       'name', 'label',
       'iterations': [<category lower>...],
       'record_ref': <raw JSON row>,   # opaque, kept only for debug output
-      'is_assigner': bool,
-      'skip': bool,                   # QTA assigner / no-case-data heuristics
+      'flags': {
+          'is_assigner': bool,
+          'skip': bool,               # QTA assigner / no-case-data heuristics
+      },
   } }
   categories = { <lowercase name>: {
       'name',
       'used': [<question lower>...],
+      'flags': {},                    # derivative indicators, empty for now
   } }
   ```
 
-  `is_assigner` and `skip` are precomputed here so the algorithm never reads
-  `properties`/`attributes` of the raw row.
+  `flags` are precomputed here so the algorithm never reads
+  `properties`/`attributes` of the raw row. They hold derivative indicators and
+  are kept separate from the structural fields; the category `flags` dict is a
+  placeholder so future indicators have a home.
 
   `normalize_config(config)` also lives here: it turns the CLI string
   `priority_categories_str` into a normalized `priority_categories` list and

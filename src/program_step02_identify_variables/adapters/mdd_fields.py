@@ -6,14 +6,20 @@ two plain dictionaries consumed by every algorithm version:
     questions : { <lowercase name>: {
                      'name', 'label', 'iterations': [<category lower>...],
                      'record_ref': <raw JSON row> (opaque, for debug output),
-                     'is_assigner': bool, 'skip': bool,
+                     'flags': {
+                         'is_assigner': bool,
+                         'skip': bool,   # QTA assigner / no-case-data heuristics
+                     },
                  } }
     categories: { <lowercase name>: {
                      'name', 'used': [<question lower>...],
+                     'flags': {},       # derivative indicators, empty for now
                  } }
 
-``is_assigner`` and ``skip`` are precomputed here so the algorithms never have
-to look into the raw MDD JSON.
+``flags`` are precomputed here so the algorithms never have to look into the raw
+MDD JSON. They hold derivative indicators and are kept separate from the
+structural fields above; the category ``flags`` dict is a placeholder so future
+indicators have a home.
 """
 
 import re
@@ -85,6 +91,7 @@ def build_model(fields_all):
                 'iterations': [],
                 'record_ref': row,
                 'label': row['label'],
+                'flags': {},
             }
         elif item_type=='category':
             variable_name, category_name = util_var_functions.extract_category_name(item_name)
@@ -96,7 +103,8 @@ def build_model(fields_all):
             if not category_name_lower in dict_categories:
                 dict_categories[category_name_lower] = {
                     'name': '{r}'.format(r=category_name),
-                    'used': []
+                    'used': [],
+                    'flags': {},
                     }
             dict_categories[category_name_lower]['used'].append(variable_name_lower)
         else:
@@ -104,9 +112,9 @@ def build_model(fields_all):
 
     # precompute semantic flags so algorithms never look into the raw JSON
     for _, q in dict_questions.items():
-        q['is_assigner'] = var_is_assigner(q['record_ref'])
+        q['flags']['is_assigner'] = var_is_assigner(q['record_ref'])
     for _, q in dict_questions.items():
-        q['skip'] = should_skip(q['record_ref'], dict_questions)
+        q['flags']['skip'] = should_skip(q['record_ref'], dict_questions)
 
     return dict_questions, dict_categories
 
