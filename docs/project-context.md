@@ -181,6 +181,15 @@ data. It reads an `.mdd` file, decides which questions/loops to stack, produces
   `v.get('flags', {}).get('skip')`). Updated `docs/step02-identify-variables.md`
   §3 and the minimal model in `tests/test_step02_identify_variables.py`.
 
+## 2026-11-04 pipeline steps documentation
+
+- Added `docs/pipeline-steps.md` describing each `--program` in the autostacking
+  pipeline (`read_mdd`, `report`/`report_html`, `report_excel`,
+  `mdd-autostk-identify-variables`, `mdd-autostk-prepare-patch`,
+  `mdd-autostk-write-template`, `mdd-patch`) plus the `test`/`done`/`version`
+  utilities. For each step it lists what it does, a minimal input example, the
+  minimal output shape, and every accepted CLI config option.
+
 ## Repository rules
 
 See `.clinerules/`.
